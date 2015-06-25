@@ -86,8 +86,13 @@ def events(parsed_strace_output):
                 assert not rest
                 verb = 'read'
             else:
-                assert ret == -1 and rest.startswith('ENOENT ')
-                verb = 'missing'
+                assert ret == -1
+                if rest.startswith('ENOENT '):
+                    verb = 'missing'
+                elif rest.startswith('EINVAL '):
+                    verb = 'read?'
+                else:
+                    logging.error('Failed to parse readline() retval: ' + rest)
             yield pid, 'path', path, verb, func
         else:
             logging.error('Cannot create event for {!r}'.format(
