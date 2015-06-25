@@ -64,7 +64,7 @@ def events(parsed_strace_output):
             verb = '???'
             if mode & CONSTS['O_RDONLY']:
                 verb = 'read'
-            if ret < 0:
+            if ret == -1:
                 assert rest.startswith('ENOENT ')
                 verb = 'missing'
             else:
@@ -73,6 +73,15 @@ def events(parsed_strace_output):
         elif func == 'stat':
             path, struct = args
             if ret == 0:
+                assert not rest
+                verb = 'read'
+            else:
+                assert ret == -1 and rest.startswith('ENOENT ')
+                verb = 'missing'
+            yield pid, 'path', path, verb, func
+        elif func == 'readlink':
+            path, target, bufsize = args
+            if ret > 0:
                 assert not rest
                 verb = 'read'
             else:
