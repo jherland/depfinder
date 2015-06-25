@@ -5,18 +5,18 @@ import subprocess
 import sys
 
 
-Strace = 'strace'
-StraceParser = Path(__file__).resolve().with_name('parse_strace.py')
-assert StraceParser.is_file()
+strace = 'strace'
+strace_parser = Path(__file__).resolve().with_name('parse_strace.py')
+assert strace_parser.is_file()
 
 
 def main(cmd_args):
     assert len(cmd_args) > 0
 
     args = [
-        Strace, '-D', '-f', '-q', '-v', '-s', '4096',
+        strace, '-D', '-f', '-q', '-v', '-s', '4096',
         '-e', 'trace=file', '-e', 'verbose=!stat',
-        '-o', '|' + str(StraceParser),
+        '-o', '|' + str(strace_parser),
     ]
     print('Running', repr(args), 'followed by', repr(cmd_args))
     return subprocess.call(args + cmd_args)
