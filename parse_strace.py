@@ -6,7 +6,8 @@ import re
 import sys
 
 CONSTS = {
-    'R_OK': 0x0001,
+    'F_OK': 0x0001,
+    'R_OK': 0x0002,
     'O_RDONLY': 0x0010,
     'AT_FDCWD': 0x0100,
 
@@ -52,7 +53,7 @@ def events(parsed_strace_output):
              yield pid, 'exit', ret
         elif func == 'access':
             path, mode = args
-            assert mode == CONSTS['R_OK']
+            assert mode in (CONSTS['F_OK'], CONSTS['R_OK'])
             assert ret == -1 and rest.startswith('ENOENT ')
             yield pid, 'path', path, 'missing', func
         elif func in ('open', 'openat'):
