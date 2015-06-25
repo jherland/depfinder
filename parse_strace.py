@@ -70,7 +70,7 @@ def events(parsed_strace_output):
             else:
                 assert ret > 0 and not rest
             yield pid, 'path', path, verb, func
-        elif func == 'stat':
+        elif func in ('stat', 'lstat'):
             path, struct = args
             if ret == 0:
                 assert not rest

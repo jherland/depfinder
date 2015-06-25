@@ -15,7 +15,7 @@ def main(cmd_args):
 
     args = [
         strace, '-D', '-f', '-q', '-v', '-s', '4096',
-        '-e', 'trace=file', '-e', 'verbose=!stat',
+        '-e', 'trace=file', '-e', 'verbose=!stat,lstat',
         '-o', '|' + str(strace_parser),
     ]
     print('Running', repr(args), 'followed by', repr(cmd_args))
