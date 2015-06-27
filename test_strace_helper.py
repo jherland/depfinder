@@ -60,13 +60,18 @@ class Test_run_trace(unittest.TestCase):
 
     def test_simple_cat(self):
         self.run_test(['cat', '/dev/null'], INIT_C_LOCALE + [
-            ('read', ('/dev/null',))
+            ('read', ('/dev/null',)),
         ])
 
     def test_cat_missing_file(self):
         self.run_test(['cat', '/proc/missing_file'], INIT_C_LOCALE + [
-            ('check', ('/proc/missing_file', False))
+            ('check', ('/proc/missing_file', False)),
         ], 1)
+
+    def test_dmesg(self):
+        self.run_test(['dmesg'], INIT_C_LOCALE + [
+            ('read', ('/dev/kmsg',)),
+        ], 0)
 
 
 if __name__ == '__main__':
