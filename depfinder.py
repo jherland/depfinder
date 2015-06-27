@@ -10,7 +10,7 @@ strace_parser = Path(__file__).resolve().with_name('strace_parser.py')
 assert strace_parser.is_file()
 
 
-def main(cmd_args):
+def start_trace(cmd_args):
     assert len(cmd_args) > 0
 
     args = [
@@ -19,7 +19,13 @@ def main(cmd_args):
         '-o', '|' + str(strace_parser),
     ]
     print('Running', repr(args), 'followed by', repr(cmd_args))
-    return subprocess.call(args + cmd_args)
+    return subprocess.Popen(args + cmd_args)
+
+
+def main(cmd_args):
+    with start_trace(cmd_args) as proc:
+        pass
+    return proc.returncode
 
 
 if __name__ == '__main__':
