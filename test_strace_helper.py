@@ -58,6 +58,9 @@ class Test_run_trace(unittest.TestCase):
     def test_simple_echo(self):
         self.run_test(['echo', 'Hello World'], INIT_C_LOCALE)
 
+    def test_echo_w_quotes(self):
+        self.run_test(['echo', '"Hello World"'], INIT_C_LOCALE)
+
     def test_simple_cat(self):
         self.run_test(['cat', '/dev/null'], INIT_C_LOCALE + [
             ('read', ('/dev/null',)),
