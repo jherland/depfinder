@@ -24,7 +24,7 @@ def start_trace(cmd_args, trace_output):
     assert len(cmd_args) > 0
 
     args = [
-        'strace', '-D', '-f', '-q', '-v', '-s', '4096',
+        'strace', '-f', '-q', '-v', '-s', '4096',
         '-e', 'trace=file', '-e', 'verbose=!stat,lstat',
         '-o', trace_output,
     ]
