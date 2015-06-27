@@ -10,9 +10,6 @@ from tempfile import TemporaryDirectory
 import strace_parser
 
 
-strace = 'strace'
-
-
 @contextmanager
 def temp_fifo(mode=0o666, suffix='', prefix='tmp', dir=None):
     """Return path to temporary FIFO that will be deleted at end of context."""
@@ -27,7 +24,7 @@ def start_trace(cmd_args, trace_output):
     assert len(cmd_args) > 0
 
     args = [
-        strace, '-D', '-f', '-q', '-v', '-s', '4096',
+        'strace', '-D', '-f', '-q', '-v', '-s', '4096',
         '-e', 'trace=file', '-e', 'verbose=!stat,lstat',
         '-o', trace_output,
     ]
