@@ -17,7 +17,7 @@ def temp_fifo(mode=0o666, suffix='', prefix='tmp', dir=None):
         yield fifo_path
 
 
-def start_trace(cmd_args, trace_output):
+def start_trace(cmd_args, trace_output, **popen_args):
     assert len(cmd_args) > 0
 
     args = [
@@ -26,7 +26,7 @@ def start_trace(cmd_args, trace_output):
         '-o', trace_output,
     ]
     logging.debug('Running', repr(args), 'followed by', repr(cmd_args))
-    return subprocess.Popen(args + cmd_args)
+    return subprocess.Popen(args + cmd_args, **popen_args)
 
 
 class StraceParseError(NotImplementedError):
@@ -150,10 +150,10 @@ def strace_output_events(f):
                 raise StraceParseError(line)
 
 
-def run_trace(cmd_args):
+def run_trace(cmd_args, **popen_args):
     """Execute the given command line and generate trace events."""
     with temp_fifo() as fifo:
-        with start_trace(cmd_args, fifo) as trace:
+        with start_trace(cmd_args, fifo, **popen_args) as trace:
             with open(fifo) as f:
                 yield from strace_output_events(f)
 

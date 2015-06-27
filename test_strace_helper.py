@@ -1,5 +1,6 @@
 import os
 import shutil
+from subprocess import DEVNULL
 import sys
 import unittest
 
@@ -29,7 +30,7 @@ class Test_run_trace(unittest.TestCase):
     def run_test(self, argv, expect, exit_code=0):
         executable = shutil.which(argv[0])
 
-        actual = list(run_trace(argv))
+        actual = list(run_trace(argv, stdout=DEVNULL, stderr=DEVNULL))
 
         # First event should always be exec
         pid, event, (actual_executable, actual_argv, env) = actual.pop(0)
