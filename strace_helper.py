@@ -1,5 +1,32 @@
+from contextlib import contextmanager
 import logging
+import os
 import re
+import subprocess
+import sys
+from tempfile import TemporaryDirectory
+
+
+@contextmanager
+def temp_fifo(mode=0o666, suffix='', prefix='tmp', dir=None):
+    """Return path to temporary FIFO that will be deleted at end of context."""
+    with TemporaryDirectory(suffix, prefix, dir) as tempdir:
+        fifo_path = os.path.join(tempdir, 'temp_fifo')
+        os.mkfifo(fifo_path, mode)
+        assert os.path.exists(fifo_path)
+        yield fifo_path
+
+
+def start_trace(cmd_args, trace_output):
+    assert len(cmd_args) > 0
+
+    args = [
+        'strace', '-f', '-q', '-v', '-s', '4096',
+        '-e', 'trace=file', '-e', 'verbose=!stat,lstat',
+        '-o', trace_output,
+    ]
+    logging.debug('Running', repr(args), 'followed by', repr(cmd_args))
+    return subprocess.Popen(args + cmd_args)
 
 
 class StraceParseError(NotImplementedError):
@@ -121,6 +148,14 @@ def strace_output_events(f):
                 yield int(pid), 'exit', (int(exit_code),)
             else:
                 raise StraceParseError(line)
+
+
+def run_trace(cmd_args):
+    """Execute the given command line and generate trace events."""
+    with temp_fifo() as fifo:
+        with start_trace(cmd_args, fifo) as trace:
+            with open(fifo) as f:
+                yield from strace_output_events(f)
 
 
 if __name__ == '__main__':

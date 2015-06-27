@@ -1,36 +1,9 @@
 #!/usr/bin/env python3
 
-from contextlib import contextmanager
-import logging
-import os
 from pprint import pprint
-import subprocess
 import sys
-from tempfile import TemporaryDirectory
 
-from strace_parser import strace_output_events
-
-
-@contextmanager
-def temp_fifo(mode=0o666, suffix='', prefix='tmp', dir=None):
-    """Return path to temporary FIFO that will be deleted at end of context."""
-    with TemporaryDirectory(suffix, prefix, dir) as tempdir:
-        fifo_path = os.path.join(tempdir, 'temp_fifo')
-        os.mkfifo(fifo_path, mode)
-        assert os.path.exists(fifo_path)
-        yield fifo_path
-
-
-def start_trace(cmd_args, trace_output):
-    assert len(cmd_args) > 0
-
-    args = [
-        'strace', '-f', '-q', '-v', '-s', '4096',
-        '-e', 'trace=file', '-e', 'verbose=!stat,lstat',
-        '-o', trace_output,
-    ]
-    logging.debug('Running', repr(args), 'followed by', repr(cmd_args))
-    return subprocess.Popen(args + cmd_args)
+from strace_helper import run_trace
 
 
 class Process:
@@ -75,18 +48,10 @@ class Process:
         self.exit_code = exit_code
 
 
-def run_trace(cmd_args):
-    with temp_fifo() as fifo:
-        with start_trace(cmd_args, fifo) as trace:
-            with open(fifo) as f:
-                p = Process.from_events(strace_output_events(f))
-    assert p.exit_code == trace.returncode
-    return p
-
-
 def main(cmd_args):
-    p = run_trace(cmd_args)
+    p = Process.from_events(run_trace(cmd_args))
     pprint(p.__dict__, width=160)
+    return p.exit_code
 
 
 if __name__ == '__main__':
