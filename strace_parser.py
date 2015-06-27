@@ -5,7 +5,7 @@ from pprint import pprint
 import re
 import sys
 
-CONSTS = {
+Const = {
     'F_OK': 0x0001,
     'R_OK': 0x0002,
     'O_RDONLY': 0x0010,
@@ -20,7 +20,7 @@ CONSTS = {
 def parse_args(args):
     # The following hack is the most compelling reason to rewrite this with
     # our own preloaded library mixin, instead of using strace
-    return eval(args, {}, CONSTS)
+    return eval(args, {}, Const)
 
 
 def parse_strace_output(f):
@@ -53,17 +53,17 @@ def events(parsed_strace_output):
              yield pid, 'exit', ret
         elif func == 'access':
             path, mode = args
-            assert mode in (CONSTS['F_OK'], CONSTS['R_OK'])
+            assert mode in (Const['F_OK'], Const['R_OK'])
             assert ret == -1 and rest.startswith('ENOENT ')
             yield pid, 'path', path, 'missing', func
         elif func in ('open', 'openat'):
             if func == 'openat':
                 base, path, mode = args
-                assert base == CONSTS['AT_FDCWD']
+                assert base == Const['AT_FDCWD']
             else:
                 path, mode = args
             verb = '???'
-            if mode & CONSTS['O_RDONLY']:
+            if mode & Const['O_RDONLY']:
                 verb = 'read'
             if ret == -1:
                 assert rest.startswith('ENOENT ')
