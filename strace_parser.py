@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
-from pprint import pprint
 import re
-import sys
 
 Const = {
     'F_OK': 0x0001,
@@ -99,10 +97,9 @@ def events(parsed_strace_output):
                 (pid, func, args, ret, rest)))
 
 
-def main():
+if __name__ == '__main__':
+    from pprint import pprint
+    import sys
+
     for e in events(parse_strace_output(sys.stdin)):
         pprint(e, width=160)
-
-
-if __name__ == '__main__':
-    main()
