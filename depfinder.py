@@ -2,15 +2,15 @@
 
 from contextlib import contextmanager
 import os
-from pathlib import Path
+from pprint import pprint
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
 
+import strace_parser
+
 
 strace = 'strace'
-strace_parser = Path(__file__).resolve().with_name('strace_parser.py')
-assert strace_parser.is_file()
 
 
 @contextmanager
@@ -36,9 +36,12 @@ def start_trace(cmd_args, trace_output):
 
 
 def main(cmd_args):
-    with start_trace(cmd_args, '|' + str(strace_parser)) as proc:
-        pass
-    return proc.returncode
+    with temp_fifo() as fifo:
+        with start_trace(cmd_args, fifo) as trace:
+            with open(fifo) as f:
+                for e in strace_parser.events(strace_parser.parse_strace_output(f)):
+                    pprint(e, width=160)
+    return trace.returncode
 
 
 if __name__ == '__main__':
