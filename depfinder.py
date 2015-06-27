@@ -6,7 +6,7 @@ import sys
 
 
 strace = 'strace'
-strace_parser = Path(__file__).resolve().with_name('parse_strace.py')
+strace_parser = Path(__file__).resolve().with_name('strace_parser.py')
 assert strace_parser.is_file()
 
 
