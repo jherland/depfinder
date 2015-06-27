@@ -33,49 +33,119 @@ class StraceParseError(NotImplementedError):
     pass
 
 
-_Const = {
-    'F_OK': 0x0001,
-    'R_OK': 0x0002,
-    'O_RDONLY': 0x0010,
-    'AT_FDCWD': 0x0100,
+def _parse_number(s):
+    try:
+        sub = s.index(',')
+        s = s[sub:]
+    except ValueError:
+        sub, s = s, ''
+    if sub.startswith('0x'):
+        ret = int(sub[2:], 16)
+    elif sub.startswith('0'):
+        ret = int(sub[1:], 8)
+    else:
+        ret = int(sub, 10)
+    return ret, s
 
-    # don't care about these flags:
-    'O_CLOEXEC': 0,
-    'O_NONBLOCK': 0,
-    'O_DIRECTORY': 0,
-}
+
+def _parse_string(s):
+    assert s.startswith('"')
+    ret = []
+    escape = False
+    for i, c in enumerate(s[1:]):
+        if escape:
+            ret.append(c)
+            escape = False
+        elif c =='\\':
+            escape = True
+        elif c == '"':
+            break
+        else:
+            ret.append(c)
+    return ''.join(ret), s[i + 2:]
 
 
-def _parse_args(args):
-    # The following hack is the most compelling reason to rewrite this with
-    # our own preloaded library mixin, instead of using strace
-    return eval(args, {}, _Const) # Hmm, it sorta looks like valid python...
+def _parse_array(s):
+    assert s.startswith('[')
+    ret = []
+    s = s[1:]
+    while s[0] != ']':
+        item, s = _parse_string(s)
+        ret.append(item)
+        if s.startswith(', '):
+            s = s[2:]
+    return ret, s[1:]
+
+
+AT_FDCWD = -100
+
+
+def _parse_args(spec, args):
+    """Parse the given args according to the given spec, yield parse items.
+
+    Spec legend:
+        - , - read a comma followed by a space, yield nothing
+        - n - read an integer and yield it
+        - f - read a file descriptor and yield it as an integer
+        - s - read a "c-style string" and yield a string
+        - | - read a |-separated list of tokens, yield a list of strings
+        - a - read an ["array", "of", "strings"], yield a list of strings
+    """
+    ret = []
+    for token in spec:
+        if token == ',':
+            assert args.startswith(', ')
+            args = args[2:]
+        elif token == 'n':
+            n, args = _parse_number(args)
+            yield n
+        elif token == 'f':
+            if args.startswith('AT_FDCWD'):
+                yield AT_FDCWD, args[8:]
+            else:
+                n, args = _parse_number(args)
+                yield n
+        elif token == 's':
+            s, args = _parse_string(args)
+            yield s
+        elif token == '|':
+            try:
+                sub = args.index(',')
+                args = args[sub:]
+            except ValueError:
+                sub, args = args, ''
+            yield list(sub.split('|'))
+        elif token == 'a':
+            a, args = _parse_array(args)
+            yield a
+    assert args == ''
+    return ret
 
 
 def _handle_exec(func, args, ret, rest):
-    executable, argv, env_s = _parse_args(args)
+    executable, argv, env_s = _parse_args('s,a,a', args)
     assert func == 'execve' and ret == 0 and not rest
     return 'exec', (executable, argv, dict(s.split('=', 1) for s in env_s))
 
 
 def _handle_access(func, args, ret, rest):
-    path, mode = _parse_args(args)
-    assert mode in (_Const['F_OK'], _Const['R_OK'])
+    path, mode = _parse_args('s,|', args)
+    assert mode in (['F_OK'], ['R_OK'])
     assert ret == -1 and rest.startswith('ENOENT ')
     return 'check', (path, False)
 
 
 def _handle_open(func, args, ret, rest):
     if func == 'openat':
-        base, path, mode = _parse_args(args)
-        assert base == _Const['AT_FDCWD']
+        base, path, mode = _parse_args('f,s,|', args)
+        assert base == AT_FDCWD
     else:
-        path, mode = _parse_args(args)
+        path, mode = _parse_args('s,|', args)
     if ret == -1:
-        assert mode & _Const['O_RDONLY']
+        assert 'O_RDONLY' in mode
         assert rest.startswith('ENOENT ')
         return 'check', (path, False)
-    elif mode & _Const['O_RDONLY']:
+    elif 'O_RDONLY' in mode:
         assert ret > 0 and not rest
         return 'read', (path,)
     else:
@@ -83,7 +153,7 @@ def _handle_open(func, args, ret, rest):
 
 
 def _handle_stat(func, args, ret, rest):
-    path, struct = _parse_args(args)
+    path, struct = _parse_args('s,n', args)
     if ret == 0:
         assert not rest
     else:
@@ -92,7 +162,7 @@ def _handle_stat(func, args, ret, rest):
 
 
 def _handle_readlink(func, args, ret, rest):
-    path, target, bufsize = _parse_args(args)
+    path, target, bufsize = _parse_args('s,s,n', args)
     if ret > 0:
         assert not rest
         return 'read', (path,)
