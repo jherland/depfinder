@@ -24,8 +24,8 @@ def parse_args(args):
 
 
 def parse_strace_output(f):
-    syscall_pattern = re.compile(r'^(\d+) (\w+)\((.*)\) += (-?\d+)(.*)$')
-    exit_pattern = re.compile(r'^(\d+) \+\+\+ exited with (\d+) \+\+\+$')
+    syscall_pattern = re.compile(r'^(\d+) +(\w+)\((.*)\) += (-?\d+)(.*)$')
+    exit_pattern = re.compile(r'^(\d+) +\+\+\+ exited with (\d+) \+\+\+$')
     for line in f:
         m = syscall_pattern.match(line)
         if m:
