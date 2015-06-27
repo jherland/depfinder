@@ -103,5 +103,6 @@ def main():
     for e in events(parse_strace_output(sys.stdin)):
         pprint(e, width=160)
 
+
 if __name__ == '__main__':
     main()
