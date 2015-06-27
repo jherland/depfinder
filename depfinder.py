@@ -1,13 +1,26 @@
 #!/usr/bin/env python3
 
+from contextlib import contextmanager
+import os
 from pathlib import Path
 import subprocess
 import sys
+from tempfile import TemporaryDirectory
 
 
 strace = 'strace'
 strace_parser = Path(__file__).resolve().with_name('strace_parser.py')
 assert strace_parser.is_file()
+
+
+@contextmanager
+def temp_fifo(mode=0o666, suffix='', prefix='tmp', dir=None):
+    """Return path to temporary FIFO that will be deleted at end of context."""
+    with TemporaryDirectory(suffix, prefix, dir) as tempdir:
+        fifo_path = os.path.join(tempdir, 'temp_fifo')
+        os.mkfifo(fifo_path, mode)
+        assert os.path.exists(fifo_path)
+        yield fifo_path
 
 
 def start_trace(cmd_args, trace_output):
