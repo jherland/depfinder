@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from contextlib import contextmanager
+import logging
 import os
 from pprint import pprint
 import subprocess
@@ -28,7 +29,7 @@ def start_trace(cmd_args, trace_output):
         '-e', 'trace=file', '-e', 'verbose=!stat,lstat',
         '-o', trace_output,
     ]
-    print('Running', repr(args), 'followed by', repr(cmd_args))
+    logging.debug('Running', repr(args), 'followed by', repr(cmd_args))
     return subprocess.Popen(args + cmd_args)
 
 
