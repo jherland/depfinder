@@ -8,6 +8,10 @@ import unittest
 from strace_helper import run_trace
 
 
+# Prevent extra libs/files from being loaded/read when commands need to
+# produced localized (error) messages.
+os.environ['LANG'] = 'C'
+
 # The following are common trace events seen at the start of many processes.
 LOADER = [
     ('check', ('/etc/ld.so.preload', False)),
@@ -25,10 +29,6 @@ INIT_C_LOCALE = INIT_C + LOCALE_ARCHIVE
 
 INIT_LS = LOADER + LIBCAP + LIBACL + LIBC + LIBATTR + LOCALE_ARCHIVE
 INIT_MV = LOADER + LIBACL + LIBATTR + LIBC + LOCALE_ARCHIVE
-
-# Setting the following prevents a lot of extra crap being loaded when commands
-# need to produced localized (error) messages.
-os.environ['LANG'] = 'C'
 
 
 class Test_run_trace(unittest.TestCase):
