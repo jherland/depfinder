@@ -21,13 +21,13 @@ class Process:
 
     def __init__(self, pid, ppid=0):
         self.pid = pid
-        self.ppid = ppid # Parent PID, 0 means unknown/uninteresting
+        self.ppid = ppid  # Parent PID, 0 means unknown/uninteresting
         self.executable = None
         self.argv = None
         self.env = None
-        self.paths_read = set() # Paths read by this process
-        self.paths_written = set() # Paths written by this process
-        self.paths_checked = set() # Paths whose (non-)existence was checked
+        self.paths_read = set()  # Paths read by this process
+        self.paths_written = set()  # Paths written by this process
+        self.paths_checked = set()  # Paths whose (non-)existence was checked
         self.exit_code = None
 
     def exec(self, executable, argv, env):

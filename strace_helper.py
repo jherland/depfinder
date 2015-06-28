@@ -3,7 +3,6 @@ import logging
 import os
 import re
 import subprocess
-import sys
 from tempfile import TemporaryDirectory
 
 
@@ -84,7 +83,7 @@ class StraceOutputParser:
             if escape:
                 ret.append(c)
                 escape = False
-            elif c =='\\':
+            elif c == '\\':
                 escape = True
             elif c == '"':
                 break
@@ -285,7 +284,6 @@ class StraceOutputParser:
     _handle_syscall_getcwd = _ignore_syscall
     _handle_syscall_wait4 = _ignore_syscall
 
-
     # Line parsers: Parse a line of strace output that matches the
     # corresponding regex in _LineParsers
 
@@ -357,7 +355,7 @@ class StraceOutputParser:
 def run_trace(cmd_args, log_events=False, **popen_args):
     '''Execute the given command line and generate trace events.'''
     with temp_fifo() as fifo:
-        with start_trace(cmd_args, fifo, **popen_args) as trace:
+        with start_trace(cmd_args, fifo, **popen_args):
             with open(fifo) as f:
                 if log_events:
                     for event_tuple in StraceOutputParser()(f):
