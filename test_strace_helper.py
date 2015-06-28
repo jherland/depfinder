@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 import shutil
 from subprocess import DEVNULL
-import sys
 from tempfile import TemporaryDirectory
 import unittest
 
@@ -91,25 +90,25 @@ class Test_run_trace(unittest.TestCase):
 
     def test_touch_new_file(self):
         with TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, 'new_file')
-            self.assertFalse(os.path.exists(path))
-            self.run_test(['touch', path], INIT_C_LOCALE + [
-                ('write', (path,)), # open()
-                ('write', (path,)), # utimensat()
+            path = Path(tmpdir, 'new_file')
+            self.assertFalse(path.exists())
+            self.run_test(['touch', path.as_posix()], INIT_C_LOCALE + [
+                ('write', (path.as_posix(),)), # open()
+                ('write', (path.as_posix(),)), # utimensat()
             ], 0)
-            self.assertTrue(os.path.exists(path))
+            self.assertTrue(path.exists())
 
     def test_touch_existing_file(self):
         with TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, 'existing_file')
-            with open(path, 'w') as f:
+            path = Path(tmpdir, 'existing_file')
+            with path.open('w') as f:
                 pass
-            self.assertTrue(os.path.exists(path))
-            self.run_test(['touch', path], INIT_C_LOCALE + [
-                ('write', (path,)), # open()
-                ('write', (path,)), # utimensat()
+            self.assertTrue(path.exists())
+            self.run_test(['touch', path.as_posix()], INIT_C_LOCALE + [
+                ('write', (path.as_posix(),)), # open()
+                ('write', (path.as_posix(),)), # utimensat()
             ], 0)
-            self.assertTrue(os.path.exists(path))
+            self.assertTrue(path.exists())
 
     def test_empty_ls(self):
         with TemporaryDirectory() as tmpdir:
@@ -121,7 +120,7 @@ class Test_run_trace(unittest.TestCase):
     def test_nonempty_long_ls(self):
         with TemporaryDirectory() as tmpdir:
             for name in ['foo', 'bar', 'baz']:
-                with open(os.path.join(tmpdir, name), 'w') as f:
+                with Path(tmpdir, name).open('w') as f:
                     pass
             self.run_test(['ls', '-a', '-l', tmpdir], INIT_LS + [
                 ('check', (tmpdir, True)),
@@ -159,33 +158,33 @@ class Test_run_trace(unittest.TestCase):
 
     def test_mv_one_file(self):
         with TemporaryDirectory() as tmpdir:
-            p1, p2 = os.path.join(tmpdir, 'foo'), os.path.join(tmpdir, 'bar')
-            with open(p1, 'w') as f:
+            p1, p2 = Path(tmpdir, 'foo'), Path(tmpdir, 'bar')
+            with p1.open('w') as f:
                 pass
-            self.run_test(['mv', p1, p2], INIT_MV + [
+            self.run_test(['mv', p1.as_posix(), p2.as_posix()], INIT_MV + [
                 ('check', (tmpdir + '/bar', False)),
                 ('check', (tmpdir + '/foo', True)),
                 ('check', (tmpdir + '/bar', False)),
                 ('write', (tmpdir + '/foo',)),
                 ('write', (tmpdir + '/bar',)),
             ], 0)
-            self.assertFalse(os.path.exists(p1))
-            self.assertTrue(os.path.exists(p2))
+            self.assertFalse(p1.exists())
+            self.assertTrue(p2.exists())
 
     def test_cp_one_file(self):
         with TemporaryDirectory() as tmpdir:
-            p1, p2 = os.path.join(tmpdir, 'foo'), os.path.join(tmpdir, 'bar')
-            with open(p1, 'w') as f:
+            p1, p2 = Path(tmpdir, 'foo'), Path(tmpdir, 'bar')
+            with p1.open('w') as f:
                 pass
-            self.run_test(['cp', p1, p2], INIT_MV + [
+            self.run_test(['cp', p1.as_posix(), p2.as_posix()], INIT_MV + [
                 ('check', (tmpdir + '/bar', False)),
                 ('check', (tmpdir + '/foo', True)),
                 ('check', (tmpdir + '/bar', False)),
                 ('read', (tmpdir + '/foo',)),
                 ('write', (tmpdir + '/bar',)),
             ], 0)
-            self.assertTrue(os.path.exists(p1))
-            self.assertTrue(os.path.exists(p2))
+            self.assertTrue(p1.exists())
+            self.assertTrue(p2.exists())
 
     def test_simple_python(self):
         self.run_test(['python', '-c', 'print("Hello, World!")'], WHATEVER)
