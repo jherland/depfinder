@@ -30,6 +30,9 @@ INIT_C_LOCALE = INIT_C + LOCALE_ARCHIVE
 INIT_LS = LOADER + LIBCAP + LIBACL + LIBC + LIBATTR + LOCALE_ARCHIVE
 INIT_MV = LOADER + LIBACL + LIBATTR + LIBC + LOCALE_ARCHIVE
 
+# Sentinel for disabling the complete even trace checks in run_test()
+WHATEVER = object()
+
 
 class Test_run_trace(unittest.TestCase):
 
@@ -54,8 +57,9 @@ class Test_run_trace(unittest.TestCase):
         self.assertEqual(event, 'exit')
         self.assertEqual(actual_exit_code, (exit_code,))
 
-        expect = [(pid, event, args) for (event, args) in expect]
-        self.assertListEqual(expect, actual)
+        if expect is not WHATEVER:
+            expect = [(pid, event, args) for (event, args) in expect]
+            self.assertListEqual(expect, actual)
 
     def test_simple_true(self):
         self.run_test(['true'], INIT_C)
@@ -181,6 +185,9 @@ class Test_run_trace(unittest.TestCase):
             ], 0)
             self.assertTrue(os.path.exists(p1))
             self.assertTrue(os.path.exists(p2))
+
+    def test_simple_python(self):
+        self.run_test(['python', '-c', 'print("Hello, World!")'], WHATEVER)
 
 
 if __name__ == '__main__':
