@@ -153,6 +153,12 @@ def _handle_access(pid, func, args, ret, rest):
         raise NotImplementedError(rest)
 
 
+def _handle_chdir(pid, func, args, ret, rest):
+    path, = _parse_args('s', args)
+    assert ret == 0 and not rest
+    yield pid, 'cwd', (path,)
+
+
 def _handle_clone(pid, func, args, ret, rest):
     _, _, flags = args.partition('flags=')  # not yet interested in other args
     flags = set(_parse_bitwise_or(flags)[0])
@@ -264,6 +270,7 @@ def _ignore(pid, func, args, ret, rest):
 
 _func_handlers = {
     'access': _handle_access,
+    'chdir': _handle_chdir,
     'clone': _handle_clone,
     'execve': _handle_exec,
     'getxattr': _handle_getxattr,
@@ -295,6 +302,7 @@ class StraceOutputParser:
         - 'write' (path)
         - 'check' (path, exists)
         - 'forked' (child_pid)
+        - 'cwd' (path)
     '''
 
     def __init__(self):
