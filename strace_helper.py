@@ -365,12 +365,17 @@ class StraceOutputParser:
                     break
 
 
-def run_trace(cmd_args, **popen_args):
+def run_trace(cmd_args, log_events=False, **popen_args):
     '''Execute the given command line and generate trace events.'''
     with temp_fifo() as fifo:
         with start_trace(cmd_args, fifo, **popen_args) as trace:
             with open(fifo) as f:
-                yield from StraceOutputParser()(f)
+                if log_events:
+                    for event_tuple in StraceOutputParser()(f):
+                        logger.debug('TRACE EVENT {!r}'.format(event_tuple))
+                        yield event_tuple
+                else:
+                    yield from StraceOutputParser()(f)
 
 
 if __name__ == '__main__':
