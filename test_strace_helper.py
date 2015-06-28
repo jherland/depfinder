@@ -167,6 +167,21 @@ class Test_run_trace(unittest.TestCase):
             self.assertFalse(os.path.exists(p1))
             self.assertTrue(os.path.exists(p2))
 
+    def test_cp_one_file(self):
+        with TemporaryDirectory() as tmpdir:
+            p1, p2 = os.path.join(tmpdir, 'foo'), os.path.join(tmpdir, 'bar')
+            with open(p1, 'w') as f:
+                pass
+            self.run_test(['cp', p1, p2], INIT_MV + [
+                ('check', (tmpdir + '/bar', False)),
+                ('check', (tmpdir + '/foo', True)),
+                ('check', (tmpdir + '/bar', False)),
+                ('read', (tmpdir + '/foo',)),
+                ('write', (tmpdir + '/bar',)),
+            ], 0)
+            self.assertTrue(os.path.exists(p1))
+            self.assertTrue(os.path.exists(p2))
+
 
 if __name__ == '__main__':
     unittest.main()
