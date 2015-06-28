@@ -170,6 +170,7 @@ def _handle_open(pid, func, args, ret, rest):
         assert base == '.', base
     else:
         path, oflag, mode = _parse_args('s,|*,n', args)
+    oflag = set(oflag)
     if ret == -1:
         assert 'O_RDONLY' in oflag
         assert rest.startswith('ENOENT ')
@@ -177,7 +178,7 @@ def _handle_open(pid, func, args, ret, rest):
     elif 'O_RDONLY' in oflag:
         assert ret > 0 and not rest
         yield pid, 'read', (path,)
-    elif 'O_WRONLY' in oflag and 'O_CREAT' in oflag:
+    elif {'O_WRONLY', 'O_RDWR'} & oflag:
         assert ret > 0 and not rest
         yield pid, 'write', (path,)
     else:
