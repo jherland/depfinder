@@ -219,6 +219,7 @@ def strace_output_events(f):
     exit_pattern = re.compile(r'^(\d+) +\+\+\+ exited with (\d+) \+\+\+$')
 
     for line in f:
+        logging.debug(line)
         m = syscall_pattern.match(line)
         if m:
             try:
