@@ -153,6 +153,14 @@ def _handle_access(pid, func, args, ret, rest):
         raise NotImplementedError(rest)
 
 
+def _handle_clone(pid, func, args, ret, rest):
+    _, _, flags = args.partition('flags=')  # not yet interested in other args
+    flags = set(_parse_bitwise_or(flags)[0])
+    assert flags == {'CLONE_CHILD_CLEARTID', 'CLONE_CHILD_SETTID', 'SIGCHLD'}
+    assert ret > 0 and not rest
+    yield pid, 'forked', (ret,)
+
+
 def _handle_exec(pid, func, args, ret, rest):
     executable, argv, env_s = _parse_args('s,a,a', args)
     env = dict(s.split('=', 1) for s in env_s)
@@ -236,6 +244,12 @@ def _handle_utimensat(pid, func, args, ret, rest):
     yield pid, 'write', (base,)
 
 
+def _handle_vfork(pid, func, args, ret, rest):
+    assert args == ''
+    assert ret > 0 and not rest
+    yield pid, 'forked', (ret,)
+
+
 def _ignore(pid, func, args, ret, rest):
     logger.debug('IGNORING: {} {}({}) = {} {}'.format(
         pid, func, args, ret, rest))
@@ -245,6 +259,7 @@ def _ignore(pid, func, args, ret, rest):
 
 _func_handlers = {
     'access': _handle_access,
+    'clone': _handle_clone,
     'execve': _handle_exec,
     'getxattr': _handle_getxattr,
     'lstat': _handle_stat,
@@ -255,12 +270,12 @@ _func_handlers = {
     'stat': _handle_stat,
     'unlink': _handle_unlink,
     'utimensat': _handle_utimensat,
+    'vfork': _handle_vfork,
 
     # ignore these syscalls
     'arch_prctl': _ignore,
     'exit_group': _ignore,
     'getcwd': _ignore,
-    'vfork': _ignore,
     'wait4': _ignore,
 }
 
@@ -274,6 +289,7 @@ class StraceOutputParser:
         - 'read' (path)
         - 'write' (path)
         - 'check' (path, exists)
+        - 'forked' (child_pid)
     '''
 
     def __init__(self):
