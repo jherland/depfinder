@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.WARNING)
 
 @contextmanager
 def temp_fifo(mode=0o666, suffix='', prefix='tmp', dir=None):
-    """Return path to temporary FIFO that will be deleted at end of context."""
+    '''Return path to temporary FIFO that will be deleted at end of context.'''
     with TemporaryDirectory(suffix, prefix, dir) as tempdir:
         fifo_path = os.path.join(tempdir, 'temp_fifo')
         os.mkfifo(fifo_path, mode)
@@ -52,7 +52,7 @@ def _parse_number(s):
 
 
 def _parse_string(s):
-    if s.startswith("NULL"):
+    if s.startswith('NULL'):
         return None, s[4:]
     if not s.startswith('"'):
         raise ValueError('Invalid string: {!r}'.format(s))
@@ -84,7 +84,7 @@ def _parse_array(s):
 
 
 def _parse_args(spec, args):
-    """Parse the given args according to the given spec, yield parse items.
+    '''Parse the given args according to the given spec, yield parse items.
 
     Spec legend:
         - , - read a comma followed by a space, yield nothing
@@ -94,7 +94,7 @@ def _parse_args(spec, args):
         - | - read a |-separated list of tokens, yield a list of strings
         - a - read an ["array", "of", "strings"], yield a list of strings
         - * - the remainder of the args are optional. yield None if not present
-    """
+    '''
     optional = False
     for token in spec:
         if token == '*':
@@ -264,7 +264,7 @@ def strace_output_events(f):
 
 
 def run_trace(cmd_args, **popen_args):
-    """Execute the given command line and generate trace events."""
+    '''Execute the given command line and generate trace events.'''
     with temp_fifo() as fifo:
         with start_trace(cmd_args, fifo, **popen_args) as trace:
             with open(fifo) as f:
