@@ -6,7 +6,9 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 
-logging.basicConfig(level=logging.WARNING)
+
+logger = logging.getLogger(__name__)
+
 
 @contextmanager
 def temp_fifo(mode=0o666, suffix='', prefix='tmp', dir=None):
@@ -26,7 +28,7 @@ def start_trace(cmd_args, trace_output, **popen_args):
         '-e', 'trace=file,process', '-e', 'verbose=!stat,lstat',
         '-o', trace_output,
     ]
-    logging.debug('Running {!r} followed by {!r}'.format(args, cmd_args))
+    logger.debug('Running {!r} followed by {!r}'.format(args, cmd_args))
     return subprocess.Popen(args + cmd_args, **popen_args)
 
 
@@ -230,7 +232,7 @@ def _handle_utimensat(pid, func, args, ret, rest):
 
 
 def _ignore(pid, func, args, ret, rest):
-    logging.debug('IGNORING: {} {}({}) = {} {}'.format(
+    logger.debug('IGNORING: {} {}({}) = {} {}'.format(
         pid, func, args, ret, rest))
     return
     yield  # empty generator
@@ -292,7 +294,7 @@ class StraceOutputParser:
 
         # Reconstruct full syscall and parse it
         line = '{} {}({}{}'.format(pid, func, partial_args, rest)
-        logging.debug('RESUMED {!r}'.format(line))
+        logger.debug('RESUMED {!r}'.format(line))
         syscall_parser, syscall_pattern = self._LineParsers[0]
         m = syscall_pattern.match(line)
         assert m
@@ -307,7 +309,7 @@ class StraceOutputParser:
         yield int(pid), 'exit', (int(exit_code),)
 
     def _parse_error(self, line):
-        logging.error('Unrecognized line: {!r}'.format(line))
+        logger.error('Unrecognized line: {!r}'.format(line))
         return
         yield  # empty generator
 
@@ -325,7 +327,7 @@ class StraceOutputParser:
 
     def __call__(self, f):
         for line in f:
-            logging.debug(line.rstrip())
+            logger.debug(line.rstrip())
             for parser, pattern in self._LineParsers:
                 m = pattern.match(line)
                 if m:

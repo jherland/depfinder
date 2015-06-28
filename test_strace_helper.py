@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -5,8 +6,10 @@ from subprocess import DEVNULL
 from tempfile import TemporaryDirectory
 import unittest
 
-from strace_helper import run_trace
+import strace_helper
 
+
+logging.basicConfig(level=logging.DEBUG)
 
 # Prevent extra libs/files from being loaded/read when commands need to
 # produced localized (error) messages.
@@ -38,11 +41,14 @@ class Test_run_trace(unittest.TestCase):
 
     maxDiff = 4096
 
-    def run_test(self, argv, expect, exit_code=0, **popen_args):
+    def run_test(self, argv, expect, exit_code=0, debug=False, **popen_args):
         executable = shutil.which(argv[0])
 
-        actual = list(run_trace(
-            argv, stdout=DEVNULL, stderr=DEVNULL, **popen_args))
+        strace_helper.logger.setLevel(
+            logging.DEBUG if debug else logging.WARNING)
+
+        actual = list(strace_helper.run_trace(
+            argv, stdout=DEVNULL, stderr=DEVNULL, **popen_args)
 
         # First event should always be exec
         pid, event, (actual_executable, actual_argv, env) = actual.pop(0)
