@@ -40,7 +40,9 @@ def _parse_number(s):
         s = s[len(sub):]
     except ValueError:
         sub, s = s, ''
-    if sub.startswith('0x'):
+    if sub == 'NULL' or sub == '0':
+        ret = 0
+    elif sub.startswith('0x'):
         ret = int(sub[2:], 16)
     elif sub.startswith('0'):
         ret = int(sub[1:], 8)
@@ -50,6 +52,8 @@ def _parse_number(s):
 
 
 def _parse_string(s):
+    if s.startswith("NULL"):
+        return None, s[4:]
     assert s.startswith('"')
     ret = []
     escape = False
