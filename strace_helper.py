@@ -94,7 +94,6 @@ def _parse_args(spec, args):
         - a - read an ["array", "of", "strings"], yield a list of strings
         - * - the remainder of the args are optional. yield None if not present
     """
-    ret = []
     optional = False
     for token in spec:
         if token == '*':
@@ -103,7 +102,7 @@ def _parse_args(spec, args):
             if token != ',':
                 yield None
         elif token == ',':
-            assert args.startswith(', ')
+            assert args.startswith(', '), args
             args = args[2:]
         elif token == 'n':
             n, args = _parse_number(args)
@@ -133,7 +132,6 @@ def _parse_args(spec, args):
         else:
             assert False, 'Unknown spec token {}'.format(token)
     assert args == ''
-    return ret
 
 
 def _handle_exec(func, args, ret, rest):
@@ -226,7 +224,7 @@ def strace_output_events(f):
     exit_pattern = re.compile(r'^(\d+) +\+\+\+ exited with (\d+) \+\+\+$')
 
     for line in f:
-        logging.debug(line)
+        logging.debug(line.rstrip())
         m = syscall_pattern.match(line)
         if m:
             try:
