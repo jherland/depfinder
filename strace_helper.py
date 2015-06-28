@@ -22,7 +22,7 @@ def start_trace(cmd_args, trace_output, **popen_args):
     assert len(cmd_args) > 0
 
     args = [
-        'strace', '-f', '-q', '-v', '-s', '4096',
+        'strace', '-f', '-q', '-v', '-s', '4096', '-y',
         '-e', 'trace=file', '-e', 'verbose=!stat,lstat',
         '-o', trace_output,
     ]
@@ -115,8 +115,10 @@ def _parse_args(spec, args):
             if args.startswith('AT_FDCWD'):
                 yield AT_FDCWD, args[8:]
             else:
-                n, args = _parse_number(args)
-                yield n
+                f, args = args.split('>', 1)
+                n, f = f.split('<', 1)
+                n, _ = _parse_number(n)
+                yield f
         elif token == 's':
             s, args = _parse_string(args)
             yield s
@@ -193,14 +195,21 @@ def _handle_readlink(func, args, ret, rest):
             raise NotImplementedError
 
 
+def _handle_utimensat(func, args, ret, rest):
+    base, path, times, flag = _parse_args('f,s,n,n', args)
+    assert path is None and times == 0 and flag == 0
+    return 'write', (base,)
+
+
 _func_handlers = {
-    'execve': _handle_exec,
     'access': _handle_access,
+    'execve': _handle_exec,
+    'lstat': _handle_stat,
     'open': _handle_open,
     'openat': _handle_open,
-    'stat': _handle_stat,
-    'lstat': _handle_stat,
     'readlink': _handle_readlink,
+    'stat': _handle_stat,
+    'utimensat': _handle_utimensat,
 }
 
 
@@ -215,7 +224,7 @@ def strace_output_events(f):
         - 'check' (path, exists)
     """
 
-    syscall_pattern = re.compile(r'^(\d+) +(\w+)\((.*)\) += (-?\d+)(.*)$')
+    syscall_pattern = re.compile(r'^(\d+) +(\w+)\((.*)\) += (-?\d+)(?:<.*?>)?(.*)$')
     exit_pattern = re.compile(r'^(\d+) +\+\+\+ exited with (\d+) \+\+\+$')
 
     for line in f:
