@@ -130,6 +130,8 @@ def _parse_args(spec, args):
         elif token == 'a':
             a, args = _parse_array(args)
             yield a
+        else:
+            assert False, 'Unknown spec token {}'.format(token)
     assert args == ''
     return ret
 
