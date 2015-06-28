@@ -2,6 +2,7 @@ import os
 import shutil
 from subprocess import DEVNULL
 import sys
+from tempfile import TemporaryDirectory
 import unittest
 
 from strace_helper import run_trace
@@ -75,6 +76,28 @@ class Test_run_trace(unittest.TestCase):
         self.run_test(['dmesg'], INIT_C_LOCALE + [
             ('read', ('/dev/kmsg',)),
         ], 0)
+
+    def test_touch_new_file(self):
+        with TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, 'new_file')
+            self.assertFalse(os.path.exists(path))
+            self.run_test(['touch', path], INIT_C_LOCALE + [
+                ('write', (path,)), # open()
+                ('write', (path,)), # utimensat()
+            ], 0)
+            self.assertTrue(os.path.exists(path))
+
+    def test_touch_existing_file(self):
+        with TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, 'existing_file')
+            with open(path, 'w') as f:
+                pass
+            self.assertTrue(os.path.exists(path))
+            self.run_test(['touch', path], INIT_C_LOCALE + [
+                ('write', (path,)), # open()
+                ('write', (path,)), # utimensat()
+            ], 0)
+            self.assertTrue(os.path.exists(path))
 
 
 if __name__ == '__main__':
