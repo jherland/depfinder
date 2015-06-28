@@ -134,17 +134,17 @@ def _parse_args(spec, args):
     assert args == ''
 
 
-def _handle_exec(func, args, ret, rest):
-    executable, argv, env_s = _parse_args('s,a,a', args)
-    assert func == 'execve' and ret == 0 and not rest
-    return 'exec', (executable, argv, dict(s.split('=', 1) for s in env_s))
-
-
 def _handle_access(func, args, ret, rest):
     path, mode = _parse_args('s,|', args)
     assert mode in (['F_OK'], ['R_OK'])
     assert ret == -1 and rest.startswith('ENOENT ')
     return 'check', (path, False)
+
+
+def _handle_exec(func, args, ret, rest):
+    executable, argv, env_s = _parse_args('s,a,a', args)
+    assert func == 'execve' and ret == 0 and not rest
+    return 'exec', (executable, argv, dict(s.split('=', 1) for s in env_s))
 
 
 def _handle_open(func, args, ret, rest):
@@ -167,15 +167,6 @@ def _handle_open(func, args, ret, rest):
         raise NotImplementedError
 
 
-def _handle_stat(func, args, ret, rest):
-    path, struct = _parse_args('s,n', args)
-    if ret == 0:
-        assert not rest
-    else:
-        assert ret == -1 and rest.startswith('ENOENT ')
-    return 'check', (path, ret == 0)
-
-
 def _handle_readlink(func, args, ret, rest):
     path, target, bufsize = _parse_args('s,s,n', args)
     if ret > 0:
@@ -189,6 +180,15 @@ def _handle_readlink(func, args, ret, rest):
             raise NotImplementedError
         else:
             raise NotImplementedError
+
+
+def _handle_stat(func, args, ret, rest):
+    path, struct = _parse_args('s,n', args)
+    if ret == 0:
+        assert not rest
+    else:
+        assert ret == -1 and rest.startswith('ENOENT ')
+    return 'check', (path, ret == 0)
 
 
 def _handle_utimensat(func, args, ret, rest):
