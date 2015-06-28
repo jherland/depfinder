@@ -9,15 +9,31 @@ from strace_helper import run_trace
 
 
 # The following are common trace events seen at the start of many processes.
-INIT_C = [
+LOADER = [
     ('check', ('/etc/ld.so.preload', False)),
     ('read', ('/etc/ld.so.cache',)),
+]
+
+LIBC = [
     ('read', ('/usr/lib/libc.so.6',)),
 ]
 
-INIT_C_LOCALE = INIT_C + [
+INIT_C = LOADER + LIBC
+
+INIT_FS = LOADER + [
+    ('read', ('/usr/lib/libcap.so.2',)),
+    ('read', ('/usr/lib/libacl.so.1',)),
+] + LIBC + [
+    ('read', ('/usr/lib/libattr.so.1',)),
+]
+
+LOCALE_AWARE = [
     ('read', ('/usr/lib/locale/locale-archive',)),
 ]
+
+INIT_C_LOCALE = INIT_C + LOCALE_AWARE
+
+INIT_FS_LOCALE = INIT_FS + LOCALE_AWARE
 
 # Setting the following prevents a lot of extra crap being loaded when commands
 # need to produced localized (error) messages.
@@ -98,6 +114,13 @@ class Test_run_trace(unittest.TestCase):
                 ('write', (path,)), # utimensat()
             ], 0)
             self.assertTrue(os.path.exists(path))
+
+    def test_empty_ls(self):
+        with TemporaryDirectory() as tmpdir:
+            self.run_test(['ls', tmpdir], INIT_FS_LOCALE + [
+                ('check', (tmpdir, True)),
+                ('read', (tmpdir,)),
+            ], 0)
 
 
 if __name__ == '__main__':
