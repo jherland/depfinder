@@ -82,9 +82,6 @@ def _parse_array(s):
     return ret, s[1:]
 
 
-AT_FDCWD = -100
-
-
 def _parse_args(spec, args):
     """Parse the given args according to the given spec, yield parse items.
 
@@ -113,7 +110,8 @@ def _parse_args(spec, args):
             yield n
         elif token == 'f':
             if args.startswith('AT_FDCWD'):
-                yield AT_FDCWD, args[8:]
+                args = args[8:]
+                yield '.'
             else:
                 f, args = args.split('>', 1)
                 n, f = f.split('<', 1)
@@ -154,7 +152,7 @@ def _handle_access(func, args, ret, rest):
 def _handle_open(func, args, ret, rest):
     if func == 'openat':
         base, path, oflag, mode = _parse_args('f,s,|*,n', args)
-        assert base == AT_FDCWD
+        assert base == '.', base
     else:
         path, oflag, mode = _parse_args('s,|*,n', args)
     if ret == -1:
