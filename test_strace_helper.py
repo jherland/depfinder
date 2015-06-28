@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import shutil
 from subprocess import DEVNULL
 import sys
@@ -188,6 +189,24 @@ class Test_run_trace(unittest.TestCase):
 
     def test_simple_python(self):
         self.run_test(['python', '-c', 'print("Hello, World!")'], WHATEVER)
+
+    def test_simple_gcc(self):
+        with TemporaryDirectory() as tmpdir:
+            c_file = Path(tmpdir, 'hello.c')
+            o_file = Path(tmpdir, 'hello.o')
+            with c_file.open('w') as f:
+                f.write('''\
+#include <stdio.h>
+
+int main() {
+    puts("Hello, World!");
+}
+''')
+            self.assertFalse(o_file.exists())
+            self.run_test(
+                ['gcc', '-c', c_file.as_posix(), '-o', o_file.as_posix()],
+                WHATEVER)
+            self.assertTrue(o_file.exists())
 
 
 if __name__ == '__main__':
