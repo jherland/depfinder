@@ -54,7 +54,8 @@ def _parse_number(s):
 def _parse_string(s):
     if s.startswith("NULL"):
         return None, s[4:]
-    assert s.startswith('"')
+    if not s.startswith('"'):
+        raise ValueError('Invalid string: {!r}'.format(s))
     ret = []
     escape = False
     for i, c in enumerate(s[1:]):
@@ -174,16 +175,17 @@ def _handle_open(pid, func, args, ret, rest):
 
 
 def _handle_readlink(pid, func, args, ret, rest):
-    path, target, bufsize = _parse_args('s,s,n', args)
-    if ret > 0:
-        assert not rest
+    try:
+        path, target, bufsize = _parse_args('s,s,n', args)
+        assert ret > 0 and not rest
         yield pid, 'read', (path,)
-    else:
+    except ValueError:
+        path, unknown, bufsize = _parse_args('s,n,n', args)
         assert ret == -1
         if rest.startswith('ENOENT '):
             yield pid, 'check', (path, False)
         elif rest.startswith('EINVAL '):
-            raise NotImplementedError
+            yield pid, 'check', (path, True)
         else:
             raise NotImplementedError
 
