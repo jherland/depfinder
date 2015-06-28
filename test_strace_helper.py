@@ -122,6 +122,45 @@ class Test_run_trace(unittest.TestCase):
                 ('read', (tmpdir,)),
             ], 0)
 
+    def test_nonempty_long_ls(self):
+        with TemporaryDirectory() as tmpdir:
+            for name in ['foo', 'bar', 'baz']:
+                with open(os.path.join(tmpdir, name), 'w') as f:
+                    pass
+            self.run_test(['ls', '-a', '-l', tmpdir], INIT_FS_LOCALE + [
+                ('check', (tmpdir, True)),
+                ('check', (tmpdir, True)),
+                ('check', (tmpdir, True)),
+                ('read', ('/etc/nsswitch.conf',)),
+                ('read', ('/etc/ld.so.cache',)),
+                ('read', ('/usr/lib/libnss_files.so.2',)),
+                ('read', ('/etc/passwd',)),
+                ('read', ('/etc/group',)),
+                ('read', (tmpdir,)),
+                ('check', (tmpdir + '/.', True)),
+                ('check', (tmpdir + '/.', True)),
+                ('check', (tmpdir + '/.', True)),
+                ('check', (tmpdir + '/..', True)),
+                ('check', (tmpdir + '/..', True)),
+                ('check', (tmpdir + '/..', True)),
+                ('read', ('/etc/passwd',)),
+                ('read', ('/etc/group',)),
+                ('check', (tmpdir + '/baz', True)),
+                ('check', (tmpdir + '/baz', True)),
+                ('check', (tmpdir + '/baz', True)),
+                ('check', (tmpdir + '/bar', True)),
+                ('check', (tmpdir + '/bar', True)),
+                ('check', (tmpdir + '/bar', True)),
+                ('check', (tmpdir + '/foo', True)),
+                ('check', (tmpdir + '/foo', True)),
+                ('check', (tmpdir + '/foo', True)),
+                ('read', ('/etc/localtime',)),
+                ('check', ('/etc/localtime', True)),
+                ('check', ('/etc/localtime', True)),
+                ('check', ('/etc/localtime', True)),
+                ('check', ('/etc/localtime', True)),
+            ], 0)
+
 
 if __name__ == '__main__':
     unittest.main()

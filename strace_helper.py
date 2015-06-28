@@ -147,6 +147,12 @@ def _handle_exec(func, args, ret, rest):
     return 'exec', (executable, argv, dict(s.split('=', 1) for s in env_s))
 
 
+def _handle_getxattr(func, args, ret, rest):
+    path, name, value, size = _parse_args('s,s,n,n', args)
+    assert ret == -1 and rest.startswith('ENODATA ')
+    return 'check', (path, True)
+
+
 def _handle_open(func, args, ret, rest):
     if func == 'openat':
         base, path, oflag, mode = _parse_args('f,s,|*,n', args)
@@ -200,6 +206,7 @@ def _handle_utimensat(func, args, ret, rest):
 _func_handlers = {
     'access': _handle_access,
     'execve': _handle_exec,
+    'getxattr': _handle_getxattr,
     'lstat': _handle_stat,
     'open': _handle_open,
     'openat': _handle_open,
