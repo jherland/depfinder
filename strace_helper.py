@@ -244,8 +244,8 @@ _func_handlers = {
 }
 
 
-def strace_output_events(f):
-    """Parse strace output from f into (pid, event, (args...)) tuples.
+class StraceOutputParser:
+    '''Parse strace output into (pid, event, (args...)) tuples.
 
     Possible events are (args in parentheses):
         - 'exec' (executable, argv_list, env_dict)
@@ -253,28 +253,42 @@ def strace_output_events(f):
         - 'read' (path)
         - 'write' (path)
         - 'check' (path, exists)
-    """
+    '''
 
-    syscall_pattern = re.compile(r'^(\d+) +(\w+)\((.*)\) += (-?\d+)(?:<.*?>)?(.*)$')
-    exit_pattern = re.compile(r'^(\d+) +\+\+\+ exited with (\d+) \+\+\+$')
+    def __init__(self):
+        self.pending = {}  # pid -> unfinished syscall name
 
-    for line in f:
-        logging.debug(line.rstrip())
-        m = syscall_pattern.match(line)
-        if m:
-            try:
-                pid, func, args, ret, rest = m.groups()
-                yield from _func_handlers[func](
-                    int(pid), func, args, int(ret), rest.strip())
-            except:
-                raise StraceParseError(line)
-        else:
-            m = exit_pattern.match(line)
-            if m:
-                pid, exit_code = m.groups()
-                yield int(pid), 'exit', (int(exit_code),)
-            else:
-                raise StraceParseError(line)
+    def _parse_syscall_full(self, pid, func, args, ret, rest):
+        ret = None if ret == '?' else int(ret)
+        yield from _func_handlers[func](
+            int(pid), func, args, ret, rest.strip())
+
+    def _parse_exit(self, pid, exit_code):
+        yield int(pid), 'exit', (int(exit_code),)
+
+    def _parse_error(self, line):
+        logging.error('Unrecognized line: {!r}'.format(line))
+        return
+        yield  # empty generator
+
+    _LineParsers = [
+        (_parse_syscall_full, re.compile(
+            r'^(\d+) +(\w+)\((.*)\) += (-?\d+|\?)(?:<.*?>)?(.*)$')),
+        (_parse_exit, re.compile(r'^(\d+) +\+\+\+ exited with (\d+) \+\+\+$')),
+        (_parse_error, re.compile(r'(.*)')),
+    ]
+
+    def __call__(self, f):
+        for line in f:
+            logging.debug(line.rstrip())
+            for parser, pattern in self._LineParsers:
+                m = pattern.match(line)
+                if m:
+                    try:
+                        yield from parser(self, *m.groups())
+                    except:
+                        raise StraceParseError(line)
+                    break
 
 
 def run_trace(cmd_args, **popen_args):
@@ -282,12 +296,12 @@ def run_trace(cmd_args, **popen_args):
     with temp_fifo() as fifo:
         with start_trace(cmd_args, fifo, **popen_args) as trace:
             with open(fifo) as f:
-                yield from strace_output_events(f)
+                yield from StraceOutputParser()(f)
 
 
 if __name__ == '__main__':
     from pprint import pprint
     import sys
 
-    for e in strace_output_events(sys.stdin):
+    for e in StraceOutputParser()(sys.stdin):
         pprint(e, width=160)
