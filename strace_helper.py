@@ -352,6 +352,7 @@ class StraceOutputParser:
     ]
 
     def __call__(self, f):
+        '''Generate trace events as documented in the class header.'''
         for line in f:
             logger.debug(line.rstrip())
             for parser, pattern in self._LineParsers:
