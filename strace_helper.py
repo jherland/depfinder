@@ -134,26 +134,26 @@ def _parse_args(spec, args):
     assert args == ''
 
 
-def _handle_access(func, args, ret, rest):
+def _handle_access(pid, func, args, ret, rest):
     path, mode = _parse_args('s,|', args)
     assert mode in (['F_OK'], ['R_OK'])
     assert ret == -1 and rest.startswith('ENOENT ')
     return 'check', (path, False)
 
 
-def _handle_exec(func, args, ret, rest):
+def _handle_exec(pid, func, args, ret, rest):
     executable, argv, env_s = _parse_args('s,a,a', args)
     assert func == 'execve' and ret == 0 and not rest
     return 'exec', (executable, argv, dict(s.split('=', 1) for s in env_s))
 
 
-def _handle_getxattr(func, args, ret, rest):
+def _handle_getxattr(pid, func, args, ret, rest):
     path, name, value, size = _parse_args('s,s,n,n', args)
     assert ret == -1 and rest.startswith('ENODATA ')
     return 'check', (path, True)
 
 
-def _handle_open(func, args, ret, rest):
+def _handle_open(pid, func, args, ret, rest):
     if func == 'openat':
         base, path, oflag, mode = _parse_args('f,s,|*,n', args)
         assert base == '.', base
@@ -173,7 +173,7 @@ def _handle_open(func, args, ret, rest):
         raise NotImplementedError
 
 
-def _handle_readlink(func, args, ret, rest):
+def _handle_readlink(pid, func, args, ret, rest):
     path, target, bufsize = _parse_args('s,s,n', args)
     if ret > 0:
         assert not rest
@@ -188,7 +188,7 @@ def _handle_readlink(func, args, ret, rest):
             raise NotImplementedError
 
 
-def _handle_stat(func, args, ret, rest):
+def _handle_stat(pid, func, args, ret, rest):
     path, struct = _parse_args('s,n', args)
     if ret == 0:
         assert not rest
@@ -197,7 +197,7 @@ def _handle_stat(func, args, ret, rest):
     return 'check', (path, ret == 0)
 
 
-def _handle_utimensat(func, args, ret, rest):
+def _handle_utimensat(pid, func, args, ret, rest):
     base, path, times, flag = _parse_args('f,s,n,n', args)
     assert path is None and times == 0 and flag == 0
     return 'write', (base,)
@@ -237,7 +237,7 @@ def strace_output_events(f):
             try:
                 pid, func, args, ret, rest = m.groups()
                 event, details = _func_handlers[func](
-                    func, args, int(ret), rest.strip())
+                    int(pid), func, args, int(ret), rest.strip())
                 yield int(pid), event, details
             except:
                 raise StraceParseError(line)
