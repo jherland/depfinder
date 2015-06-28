@@ -169,8 +169,13 @@ def _handle_exec(pid, func, args, ret, rest):
         assert not rest
         yield pid, 'exec', (executable, argv, env)
     else:
-        assert ret == -1 and rest.startswith('ENOENT ')
-        yield pid, 'check', (executable, False)
+        assert ret == -1
+        if rest.startswith('ENOENT '):
+            yield pid, 'check', (executable, False)
+        elif rest.startswith('EACCES '):
+            yield pid, 'check', (executable, True)
+        else:
+            raise NotImplementedError
 
 
 def _handle_getxattr(pid, func, args, ret, rest):
