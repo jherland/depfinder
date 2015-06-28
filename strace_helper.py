@@ -263,6 +263,32 @@ class StraceOutputParser:
         yield from _func_handlers[func](
             int(pid), func, args, ret, rest.strip())
 
+    def _parse_syscall_unfinished(self, pid, func, partial_args):
+        pid = int(pid)
+        assert pid not in self.pending
+        self.pending[pid] = (func, partial_args)
+        return
+        yield  # empty generator
+
+    def _parse_syscall_resumed(self, pid, func, rest):
+        pid = int(pid)
+        stored_func, partial_args = self.pending[pid]
+        assert func == stored_func
+        del self.pending[pid]
+
+        # Reconstruct full syscall and parse it
+        line = '{} {}({}{}'.format(pid, func, partial_args, rest)
+        logging.debug('RESUMED {!r}'.format(line))
+        syscall_parser, syscall_pattern = self._LineParsers[0]
+        m = syscall_pattern.match(line)
+        assert m
+        yield from syscall_parser(self, *m.groups())
+
+    def _parse_signal(self, pid, signal, args):
+        assert signal == 'SIGCHLD'
+        return
+        yield  # empty generator
+
     def _parse_exit(self, pid, exit_code):
         yield int(pid), 'exit', (int(exit_code),)
 
@@ -274,6 +300,11 @@ class StraceOutputParser:
     _LineParsers = [
         (_parse_syscall_full, re.compile(
             r'^(\d+) +(\w+)\((.*)\) += (-?\d+|\?)(?:<.*?>)?(.*)$')),
+        (_parse_syscall_unfinished, re.compile(
+            r'^(\d+) +(\w+)\((.*) <unfinished \.\.\.>$')),
+        (_parse_syscall_resumed, re.compile(
+            r'^(\d+) +<\.\.\. (\w+) resumed> (.*)$')),
+        (_parse_signal, re.compile(r'^(\d+) +--- (\w+) {(.*)} ---$')),
         (_parse_exit, re.compile(r'^(\d+) +\+\+\+ exited with (\d+) \+\+\+$')),
         (_parse_error, re.compile(r'(.*)')),
     ]
