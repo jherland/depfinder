@@ -36,8 +36,8 @@ class StraceParseError(NotImplementedError):
 
 def _parse_number(s):
     try:
-        sub = s.index(',')
-        s = s[sub:]
+        sub = s[:s.index(',')]
+        s = s[len(sub):]
     except ValueError:
         sub, s = s, ''
     if sub.startswith('0x'):
@@ -111,8 +111,8 @@ def _parse_args(spec, args):
             yield s
         elif token == '|':
             try:
-                sub = args.index(',')
-                args = args[sub:]
+                sub = args[:args.index(',')]
+                args = args[len(sub):]
             except ValueError:
                 sub, args = args, ''
             yield list(sub.split('|'))
