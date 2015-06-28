@@ -229,6 +229,13 @@ def _handle_utimensat(pid, func, args, ret, rest):
     yield pid, 'write', (base,)
 
 
+def _ignore(pid, func, args, ret, rest):
+    logging.debug('IGNORING: {} {}({}) = {} {}'.format(
+        pid, func, args, ret, rest))
+    return
+    yield  # empty generator
+
+
 _func_handlers = {
     'access': _handle_access,
     'execve': _handle_exec,
@@ -241,6 +248,12 @@ _func_handlers = {
     'stat': _handle_stat,
     'unlink': _handle_unlink,
     'utimensat': _handle_utimensat,
+
+    # ignore these syscalls
+    'arch_prctl': _ignore,
+    'exit_group': _ignore,
+    'vfork': _ignore,
+    'wait4': _ignore,
 }
 
 
