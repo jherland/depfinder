@@ -137,9 +137,13 @@ def _parse_args(spec, args):
 
 def _handle_access(pid, func, args, ret, rest):
     path, mode = _parse_args('s,|', args)
-    assert mode in (['F_OK'], ['R_OK'])
-    assert ret == -1 and rest.startswith('ENOENT ')
-    yield pid, 'check', (path, False)
+    assert set(mode) - {'F_OK', 'R_OK', 'W_OK', 'X_OK'} == set()
+    if ret == 0:
+        yield pid, 'check', (path, True)
+    elif ret == -1 and rest.startswith('ENOENT '):
+        yield pid, 'check', (path, False)
+    else:
+        raise NotImplementedError(rest)
 
 
 def _handle_exec(pid, func, args, ret, rest):
