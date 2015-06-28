@@ -48,7 +48,8 @@ class Test_run_trace(unittest.TestCase):
             logging.DEBUG if debug else logging.WARNING)
 
         actual = list(strace_helper.run_trace(
-            argv, stdout=DEVNULL, stderr=DEVNULL, **popen_args)
+            argv, log_events=debug,
+            stdout=DEVNULL, stderr=DEVNULL, **popen_args)
 
         # First event should always be exec
         pid, event, (actual_executable, actual_argv, env) = actual.pop(0)
