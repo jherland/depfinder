@@ -6,6 +6,7 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 
+logging.basicConfig(level=logging.WARNING)
 
 @contextmanager
 def temp_fifo(mode=0o666, suffix='', prefix='tmp', dir=None):
@@ -25,7 +26,7 @@ def start_trace(cmd_args, trace_output, **popen_args):
         '-e', 'trace=file', '-e', 'verbose=!stat,lstat',
         '-o', trace_output,
     ]
-    logging.debug('Running', repr(args), 'followed by', repr(cmd_args))
+    logging.debug('Running {!r} followed by {!r}'.format(args, cmd_args))
     return subprocess.Popen(args + cmd_args, **popen_args)
 
 
