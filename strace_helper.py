@@ -217,6 +217,12 @@ def _handle_stat(pid, func, args, ret, rest):
     yield pid, 'check', (path, ret == 0)
 
 
+def _handle_unlink(pid, func, args, ret, rest):
+    path = _parse_args('s', args)
+    assert ret == 0 and not rest
+    yield pid, 'write', (path,)
+
+
 def _handle_utimensat(pid, func, args, ret, rest):
     base, path, times, flag = _parse_args('f,s,n,n', args)
     assert path is None and times == 0 and flag == 0
@@ -233,6 +239,7 @@ _func_handlers = {
     'readlink': _handle_readlink,
     'rename': _handle_rename,
     'stat': _handle_stat,
+    'unlink': _handle_unlink,
     'utimensat': _handle_utimensat,
 }
 
