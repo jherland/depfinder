@@ -25,6 +25,10 @@ LIBC = [('read', ('/usr/lib/libc.so.6',))]
 LIBCAP = [('read', ('/usr/lib/libcap.so.2',))]
 LIBACL = [('read', ('/usr/lib/libacl.so.1',))]
 LIBATTR = [('read', ('/usr/lib/libattr.so.1',))]
+LIBREADLINE = [('read', ('/usr/lib/libreadline.so.6',))]
+LIBNCURSES = [('read', ('/usr/lib/libncursesw.so.5',))]
+LIBDL = [('read', ('/usr/lib/libdl.so.2',))]
+
 LOCALE_ARCHIVE = [('read', ('/usr/lib/locale/locale-archive',))]
 
 INIT_C = LOADER + LIBC
@@ -32,6 +36,14 @@ INIT_C_LOCALE = INIT_C + LOCALE_ARCHIVE
 
 INIT_LS = LOADER + LIBCAP + LIBACL + LIBC + LIBATTR + LOCALE_ARCHIVE
 INIT_MV = LOADER + LIBACL + LIBATTR + LIBC + LOCALE_ARCHIVE
+INIT_SH = (
+    LOADER + LIBREADLINE + LIBNCURSES + LIBDL + LIBC + [
+        ('write', ('/dev/tty',)),
+    ] + LOCALE_ARCHIVE + [
+        ('read', ('/proc/meminfo',)),
+        ('check', (os.getcwd(), True)),
+        ('check', ('.', True)),
+    ])
 
 # Sentinel for disabling the complete even trace checks in run_test()
 WHATEVER = object()
@@ -242,6 +254,34 @@ int main() {
                 ['gcc', '-c', c_file, '-o', x_file],
                 WHATEVER, cwd=tmpdir)
             self.assertTrue(Path(tmpdir, x_file).exists())
+
+    simple_shell_script = '''\
+#!/bin/sh
+
+echo "Hello World"
+'''
+
+    def test_simple_shell_scipt_without_x_bit(self):
+        with TemporaryDirectory() as tmpdir:
+            script = Path(tmpdir, 'hello.sh')
+            with script.open('w') as f:
+                f.write(self.simple_shell_script)
+            actual = list(self.run_trace([script.as_posix()]))
+            pid = actual[0][0]
+            self.assertListEqual(actual, [
+                (pid, 'check', (script.as_posix(), True)),  # execve() -> EACCES
+                (pid, 'exit', (1,)),
+            ])
+
+    def test_simple_shell_scipt(self):
+        with TemporaryDirectory() as tmpdir:
+            script = Path(tmpdir, 'hello.sh')
+            with script.open('w') as f:
+                f.write(self.simple_shell_script)
+            script.chmod(0o755)
+            self.run_test([script.as_posix()], INIT_SH + [
+                ('read', (script.as_posix(),)),
+            ])
 
 
 if __name__ == '__main__':
