@@ -41,33 +41,47 @@ class Test_run_trace(unittest.TestCase):
 
     maxDiff = 4096
 
-    def run_test(self, argv, expect, exit_code=0, debug=False, **popen_args):
-        executable = shutil.which(argv[0])
-
+    def run_trace(self, argv, debug=False, **popen_args):
         strace_helper.logger.setLevel(
             logging.DEBUG if debug else logging.WARNING)
 
-        actual = list(strace_helper.run_trace(
+        return strace_helper.run_trace(
             argv, log_events=debug,
             stdout=DEVNULL, stderr=DEVNULL, **popen_args)
 
+    def check_events(self, actual, pid, argv, events, exit_code=0, env=None):
+        executable = shutil.which(argv[0])
+        expect_env = os.environ.copy()
+        if env is not None:
+            for k, v in env.items():
+                if v is None:
+                    del expect_env[k]
+                else:
+                    expect_env[k] = v
+
         # First event should always be exec
-        pid, event, (actual_executable, actual_argv, env) = actual.pop(0)
-        self.assertGreater(pid, 0)
-        self.assertEqual(event, 'exec')
-        self.assertEqual(actual_executable, executable)
-        self.assertListEqual(actual_argv, argv)
-        self.assertDictEqual(env, dict(os.environ))
+        a_pid, a_event, (a_executable, a_argv, a_env) = actual.pop(0)
+        self.assertGreater(a_pid, 0)
+        self.assertEqual(a_pid, pid)
+        self.assertEqual(a_event, 'exec')
+        self.assertEqual(a_executable, executable)
+        self.assertListEqual(a_argv, argv)
+        self.assertDictEqual(a_env, expect_env)
 
         # Last event should always be exit
-        actual_pid, event, actual_exit_code = actual.pop()
-        self.assertEqual(actual_pid, pid)
-        self.assertEqual(event, 'exit')
-        self.assertEqual(actual_exit_code, (exit_code,))
+        a_pid, a_event, a_exit_code = actual.pop()
+        self.assertEqual(a_pid, pid)
+        self.assertEqual(a_event, 'exit')
+        self.assertEqual(a_exit_code, (exit_code,))
 
-        if expect is not WHATEVER:
-            expect = [(pid, event, args) for (event, args) in expect]
+        if events is not WHATEVER:
+            expect = [(pid, event, args) for (event, args) in events]
             self.assertListEqual(expect, actual)
+
+    def run_test(self, argv, expect, exit_code=0, debug=False, **popen_args):
+        actual = list(self.run_trace(argv, debug, **popen_args))
+        pid = actual[0][0]  # peek at first event to deduce PID
+        return self.check_events(actual, pid, argv, expect, exit_code)
 
     def test_simple_true(self):
         self.run_test(['true'], INIT_C)
