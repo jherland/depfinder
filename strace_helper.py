@@ -91,10 +91,17 @@ def _parse_args(spec, args):
         - s - read a "c-style string" and yield a string
         - | - read a |-separated list of tokens, yield a list of strings
         - a - read an ["array", "of", "strings"], yield a list of strings
+        - * - the remainder of the args are optional. yield None if not present
     """
     ret = []
+    optional = False
     for token in spec:
-        if token == ',':
+        if token == '*':
+            optional = True
+        elif optional and not args:
+            if token != ',':
+                yield None
+        elif token == ',':
             assert args.startswith(', ')
             args = args[2:]
         elif token == 'n':
@@ -138,17 +145,20 @@ def _handle_access(func, args, ret, rest):
 
 def _handle_open(func, args, ret, rest):
     if func == 'openat':
-        base, path, mode = _parse_args('f,s,|', args)
+        base, path, oflag, mode = _parse_args('f,s,|*,n', args)
         assert base == AT_FDCWD
     else:
-        path, mode = _parse_args('s,|', args)
+        path, oflag, mode = _parse_args('s,|*,n', args)
     if ret == -1:
-        assert 'O_RDONLY' in mode
+        assert 'O_RDONLY' in oflag
         assert rest.startswith('ENOENT ')
         return 'check', (path, False)
-    elif 'O_RDONLY' in mode:
+    elif 'O_RDONLY' in oflag:
         assert ret > 0 and not rest
         return 'read', (path,)
+    elif 'O_WRONLY' in oflag and 'O_CREAT' in oflag:
+        assert ret > 0 and not rest
+        return 'write', (path,)
     else:
         raise NotImplementedError
 
