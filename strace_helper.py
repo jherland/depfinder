@@ -73,6 +73,15 @@ def _parse_string(s):
     return ''.join(ret), s[i + 2:]
 
 
+def _parse_bitwise_or(s):
+    try:
+        sub = s[:s.index(',')]
+        s = s[len(sub):]
+    except ValueError:
+        sub, s = s, ''
+    return sub.split('|'), s
+
+
 def _parse_array(s):
     assert s.startswith('[')
     ret = []
@@ -123,12 +132,8 @@ def _parse_args(spec, args):
             s, args = _parse_string(args)
             yield s
         elif token == '|':
-            try:
-                sub = args[:args.index(',')]
-                args = args[len(sub):]
-            except ValueError:
-                sub, args = args, ''
-            yield list(sub.split('|'))
+            a, args = _parse_bitwise_or(args)
+            yield a
         elif token == 'a':
             a, args = _parse_array(args)
             yield a
