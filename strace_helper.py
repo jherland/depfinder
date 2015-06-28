@@ -148,8 +148,14 @@ def _handle_access(pid, func, args, ret, rest):
 
 def _handle_exec(pid, func, args, ret, rest):
     executable, argv, env_s = _parse_args('s,a,a', args)
-    assert func == 'execve' and ret == 0 and not rest
-    yield pid, 'exec', (executable, argv, dict(s.split('=', 1) for s in env_s))
+    env = dict(s.split('=', 1) for s in env_s)
+    assert func == 'execve'
+    if ret == 0:
+        assert not rest
+        yield pid, 'exec', (executable, argv, env)
+    else:
+        assert ret == -1 and rest.startswith('ENOENT ')
+        yield pid, 'check', (executable, False)
 
 
 def _handle_getxattr(pid, func, args, ret, rest):
