@@ -14,26 +14,17 @@ LOADER = [
     ('read', ('/etc/ld.so.cache',)),
 ]
 
-LIBC = [
-    ('read', ('/usr/lib/libc.so.6',)),
-]
+LIBC = [('read', ('/usr/lib/libc.so.6',))]
+LIBCAP = [('read', ('/usr/lib/libcap.so.2',))]
+LIBACL = [('read', ('/usr/lib/libacl.so.1',))]
+LIBATTR = [('read', ('/usr/lib/libattr.so.1',))]
+LOCALE_ARCHIVE = [('read', ('/usr/lib/locale/locale-archive',))]
 
 INIT_C = LOADER + LIBC
+INIT_C_LOCALE = INIT_C + LOCALE_ARCHIVE
 
-INIT_FS = LOADER + [
-    ('read', ('/usr/lib/libcap.so.2',)),
-    ('read', ('/usr/lib/libacl.so.1',)),
-] + LIBC + [
-    ('read', ('/usr/lib/libattr.so.1',)),
-]
-
-LOCALE_AWARE = [
-    ('read', ('/usr/lib/locale/locale-archive',)),
-]
-
-INIT_C_LOCALE = INIT_C + LOCALE_AWARE
-
-INIT_FS_LOCALE = INIT_FS + LOCALE_AWARE
+INIT_LS = LOADER + LIBCAP + LIBACL + LIBC + LIBATTR + LOCALE_ARCHIVE
+INIT_MV = LOADER + LIBACL + LIBATTR + LIBC + LOCALE_ARCHIVE
 
 # Setting the following prevents a lot of extra crap being loaded when commands
 # need to produced localized (error) messages.
@@ -117,7 +108,7 @@ class Test_run_trace(unittest.TestCase):
 
     def test_empty_ls(self):
         with TemporaryDirectory() as tmpdir:
-            self.run_test(['ls', tmpdir], INIT_FS_LOCALE + [
+            self.run_test(['ls', tmpdir], INIT_LS + [
                 ('check', (tmpdir, True)),
                 ('read', (tmpdir,)),
             ], 0)
@@ -127,7 +118,7 @@ class Test_run_trace(unittest.TestCase):
             for name in ['foo', 'bar', 'baz']:
                 with open(os.path.join(tmpdir, name), 'w') as f:
                     pass
-            self.run_test(['ls', '-a', '-l', tmpdir], INIT_FS_LOCALE + [
+            self.run_test(['ls', '-a', '-l', tmpdir], INIT_LS + [
                 ('check', (tmpdir, True)),
                 ('check', (tmpdir, True)),
                 ('check', (tmpdir, True)),
@@ -160,6 +151,21 @@ class Test_run_trace(unittest.TestCase):
                 ('check', ('/etc/localtime', True)),
                 ('check', ('/etc/localtime', True)),
             ], 0)
+
+    def test_mv_one_file(self):
+        with TemporaryDirectory() as tmpdir:
+            p1, p2 = os.path.join(tmpdir, 'foo'), os.path.join(tmpdir, 'bar')
+            with open(p1, 'w') as f:
+                pass
+            self.run_test(['mv', p1, p2], INIT_MV + [
+                ('check', (tmpdir + '/bar', False)),
+                ('check', (tmpdir + '/foo', True)),
+                ('check', (tmpdir + '/bar', False)),
+                ('write', (tmpdir + '/foo',)),
+                ('write', (tmpdir + '/bar',)),
+            ], 0)
+            self.assertFalse(os.path.exists(p1))
+            self.assertTrue(os.path.exists(p2))
 
 
 if __name__ == '__main__':
