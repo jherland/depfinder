@@ -188,6 +188,13 @@ def _handle_readlink(pid, func, args, ret, rest):
             raise NotImplementedError
 
 
+def _handle_rename(pid, func, args, ret, rest):
+    path_from, path_to = _parse_args('s,s', args)
+    assert ret == 0 and not rest
+    yield pid, 'write', (path_from,)
+    yield pid, 'write', (path_to,)
+
+
 def _handle_stat(pid, func, args, ret, rest):
     path, struct = _parse_args('s,n', args)
     if ret == 0:
@@ -211,6 +218,7 @@ _func_handlers = {
     'open': _handle_open,
     'openat': _handle_open,
     'readlink': _handle_readlink,
+    'rename': _handle_rename,
     'stat': _handle_stat,
     'utimensat': _handle_utimensat,
 }
