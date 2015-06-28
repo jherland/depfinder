@@ -252,6 +252,7 @@ _func_handlers = {
     # ignore these syscalls
     'arch_prctl': _ignore,
     'exit_group': _ignore,
+    'getcwd': _ignore,
     'vfork': _ignore,
     'wait4': _ignore,
 }

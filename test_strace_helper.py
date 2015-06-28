@@ -38,10 +38,11 @@ class Test_run_trace(unittest.TestCase):
 
     maxDiff = 4096
 
-    def run_test(self, argv, expect, exit_code=0):
+    def run_test(self, argv, expect, exit_code=0, **popen_args):
         executable = shutil.which(argv[0])
 
-        actual = list(run_trace(argv, stdout=DEVNULL, stderr=DEVNULL))
+        actual = list(run_trace(
+            argv, stdout=DEVNULL, stderr=DEVNULL, **popen_args))
 
         # First event should always be exec
         pid, event, (actual_executable, actual_argv, env) = actual.pop(0)
@@ -189,23 +190,37 @@ class Test_run_trace(unittest.TestCase):
     def test_simple_python(self):
         self.run_test(['python', '-c', 'print("Hello, World!")'], WHATEVER)
 
-    def test_simple_gcc(self):
-        with TemporaryDirectory() as tmpdir:
-            c_file = Path(tmpdir, 'hello.c')
-            o_file = Path(tmpdir, 'hello.o')
-            with c_file.open('w') as f:
-                f.write('''\
+    c_program = '''\
 #include <stdio.h>
 
 int main() {
     puts("Hello, World!");
 }
-''')
+'''
+
+    def test_simple_gcc(self):
+        with TemporaryDirectory() as tmpdir:
+            c_file = Path(tmpdir, 'hello.c')
+            o_file = Path(tmpdir, 'hello.o')
+            with c_file.open('w') as f:
+                f.write(self.c_program)
             self.assertFalse(o_file.exists())
             self.run_test(
                 ['gcc', '-c', c_file.as_posix(), '-o', o_file.as_posix()],
                 WHATEVER)
             self.assertTrue(o_file.exists())
+
+    def test_gcc_with_cwd(self):
+        with TemporaryDirectory() as tmpdir:
+            c_file = 'hello.c'
+            x_file = 'hello'
+            with Path(tmpdir, c_file).open('w') as f:
+                f.write(self.c_program)
+            self.assertFalse(Path(tmpdir, x_file).exists())
+            self.run_test(
+                ['gcc', '-c', c_file, '-o', x_file],
+                WHATEVER, cwd=tmpdir)
+            self.assertTrue(Path(tmpdir, x_file).exists())
 
 
 if __name__ == '__main__':
