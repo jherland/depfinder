@@ -2,6 +2,7 @@ import logging
 import os
 from pathlib import Path
 import shutil
+from subprocess import DEVNULL
 from tempfile import TemporaryDirectory
 import unittest
 
@@ -38,8 +39,9 @@ class TestProcessTrace(unittest.TestCase):
     def run_trace(self, cmd_args, debug=False, **popen_args):
         strace_helper.logger.setLevel(
             logging.DEBUG if debug else logging.WARNING)
-        p = ProcessTrace.from_events(
-            strace_helper.run_trace(cmd_args, log_events=debug, **popen_args))
+        p = ProcessTrace.from_events(strace_helper.run_trace(
+            cmd_args, log_events=debug,
+            stdout=DEVNULL, stderr=DEVNULL, **popen_args))
         return p
 
     def check_trace(self, expect, actual):
