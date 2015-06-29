@@ -12,6 +12,10 @@ import strace_helper
 
 logging.basicConfig(level=logging.DEBUG)
 
+# Prevent extra libs/files from being loaded/read when commands need to
+# produced localized (error) messages.
+os.environ['LANG'] = 'C'
+
 
 def _init_c(p):
     p.read('/etc/ld.so.cache')
