@@ -24,6 +24,12 @@ class ProcessTrace:
             p = running[pid]
             getattr(p, event)(*args)  # handle trace event
 
+            if event == 'fork':
+                cpid = args[0]
+                c = ProcessTrace(pid=cpid, ppid=pid, cwd=p.cwd)
+                assert cpid not in running
+                running[cpid] = c
+                p.children.append(c)
             if event == 'exit':
                 del running[pid]
 
@@ -43,6 +49,7 @@ class ProcessTrace:
         self.paths_written = set()  # Paths written by this process
         self.paths_checked = set()  # Paths whose (non-)existence was checked
         self.exit_code = exit_code
+        self.children = []  # List of child processes forked from this one
 
         if paths_read is not None:
             for path in paths_read:
@@ -58,7 +65,9 @@ class ProcessTrace:
 
     def json(self):
         def handle_extended_types(o):
-            if isinstance(o, PosixPath):
+            if isinstance(o, self.__class__):
+                return o.__dict__
+            elif isinstance(o, PosixPath):
                 return o.as_posix()
             elif isinstance(o, set):
                 return list(sorted(o))
@@ -94,7 +103,7 @@ class ProcessTrace:
         self.exit_code = exit_code
 
     def fork(self, child_pid):
-        pass  # FIXME: Keep track of forks!?
+        pass  # forks are tracked by from_events()
 
     def chdir(self, path):
         raise NotImplementedError
