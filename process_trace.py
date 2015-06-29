@@ -12,6 +12,7 @@ class ProcessTrace:
             if p is None:
                 p = cls(pid)
                 assert event == 'exec'
+            assert pid == p.pid
             getattr(p, event)(*args)
         return p
 
@@ -77,3 +78,9 @@ class ProcessTrace:
     def exit(self, exit_code):
         assert self.exit_code is None
         self.exit_code = exit_code
+
+    def forked(self, child_pid):
+        raise NotImplementedError
+
+    def chdir(self, path):
+        raise NotImplementedError
