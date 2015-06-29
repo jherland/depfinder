@@ -9,14 +9,14 @@ class ProcessTrace:
         p = None
         for pid, event, args in events:
             if p is None:
-                p = cls(pid, 0)
+                p = cls(pid)
                 assert event == 'exec'
             getattr(p, event)(*args)
         return p
 
-    def __init__(self, pid, ppid=0, cwd=None):
+    def __init__(self, pid=None, ppid=None, cwd=None):
         self.pid = pid
-        self.ppid = ppid  # Parent PID, 0 means unknown/uninteresting
+        self.ppid = ppid
         self.cwd = cwd or Path.cwd()
         self.executable = None
         self.argv = None
