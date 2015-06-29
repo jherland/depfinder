@@ -1,4 +1,5 @@
-from pathlib import Path
+import json
+from pathlib import Path, PosixPath
 
 
 class ProcessTrace:
@@ -39,6 +40,20 @@ class ProcessTrace:
         if paths_checked is not None:
             for path, exists in paths_checked:
                 self.check(path, exists)
+
+    def json(self):
+        def handle_extended_types(o):
+            if isinstance(o, PosixPath):
+                return o.as_posix()
+            elif isinstance(o, set):
+                return list(sorted(o))
+            raise TypeError(o)
+
+        return json.dumps(
+            self.__dict__,
+            sort_keys=True,
+            indent=4,
+            default=handle_extended_types)
 
     # Trace event handlers
 
