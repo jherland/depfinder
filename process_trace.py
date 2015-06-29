@@ -7,14 +7,11 @@ class ProcessTrace:
 
     @classmethod
     def from_events(cls, events):
-        p = None
+        pids = {}  # map pid -> ProcessTrace instance
         for pid, event, args in events:
-            if p is None:
-                p = cls(pid)
-                assert event == 'exec'
-            assert pid == p.pid
+            p = pids.setdefault(pid, cls(pid))
             getattr(p, event)(*args)
-        return p
+        return pids[min(pids.keys())]
 
     def __init__(self, pid=None, ppid=None, cwd=None, executable=None,
                  argv=None, env=None, paths_read=None, paths_written=None,
