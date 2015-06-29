@@ -1,7 +1,51 @@
-def adjust_env(env, adjustments):
-    for k, v in adjustments.items():
-        if v is None:
-            if k in env:
+import os
+
+def adjust_env(env, adjustments=None, keep=None):
+    '''Perform adjustments on an (environment) dictionary.
+
+    The 'env' dictionary is mutated as follows:
+     - 'keep', if given, is a collection of 'env' keys that will be kept. All
+       other keys in 'env' are removed. Keys in 'keep' that are not in 'env'
+       are not added (unless they also appear in 'adjustments'). If 'keep' is
+       None (or not given), nothing is removed from 'env' (at this point).
+
+     - for 'adjustments' keys whose value is not None, store that key/value
+       pair into 'env' (replacing any previous value that may have been there).
+
+     - for 'adjustments' keys whose value is None, remove that key from 'env'.
+
+    >>> env = { 'foo': 1, 'bar': 2, 'baz': 3, 'xyzzy': 4 }
+    >>> adjustments = { 'bar': 0, 'baz': None }
+    >>> keep = {'foo', 'bar', 'baz'}
+    >>> adjust_env(env, adjustments, keep)
+    >>> env == { 'foo': 1, 'bar': 0 }
+    True
+    '''
+    if keep is not None:
+        # Remove anything not in keep
+        for k in list(env.keys()):
+            if k not in keep:
                 del env[k]
-        else:
-            env[k] = v
+
+    if adjustments is not None:
+        # Apply adjustments
+        for k, v in adjustments.items():
+            if v is None:
+                if k in env:
+                    del env[k]
+            else:
+                env[k] = v
+
+
+def prepare_trace_environment():
+    '''Prepare this process' environment for running a trace.
+
+    Clean up and minimize the environment to ensure the commands executed by
+    the trace behave as deterministically as possible.
+    '''
+    adjust_env(os.environ, keep={'PATH', 'PWD', 'SHELL'})
+
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
