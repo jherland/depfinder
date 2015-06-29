@@ -45,7 +45,7 @@ class StraceOutputParser:
         - 'write' (path)
         - 'check' (path, exists)
         - 'forked' (child_pid)
-        - 'cwd' (path)
+        - 'chdir' (path)
     '''
 
     def __init__(self):
@@ -173,7 +173,7 @@ class StraceOutputParser:
     def _handle_syscall_chdir(self, pid, func, args, ret, rest):
         path, = self._parse_args('s', args)
         assert ret == 0 and not rest
-        yield pid, 'cwd', (path,)
+        yield pid, 'chdir', (path,)
 
     def _handle_syscall_clone(self, pid, func, args, ret, rest):
         _, _, flags = args.partition('flags=')  # not interested in other args?
