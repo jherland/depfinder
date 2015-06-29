@@ -106,4 +106,4 @@ class ProcessTrace:
         pass  # forks are tracked by from_events()
 
     def chdir(self, path):
-        raise NotImplementedError
+        self.cwd = Path(path)
