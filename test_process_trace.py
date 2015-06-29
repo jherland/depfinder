@@ -32,22 +32,37 @@ class TestProcessTrace(unittest.TestCase):
         actual = self.run_trace(cmd_args, debug, **popen_args)
         self.check_trace(expect, actual)
 
+    def expect_trace(self, argv, cwd=None, adjust_env=None, read=None,
+                     write=None, check=None, exit_code=0):
+        '''Helper method for setting up an expected ProcessTrace object.'''
+        cwd = cwd if cwd else Path.cwd()
+        env = os.environ.copy()
+        if adjust_env is not None:
+            for k, v in adjust_env.items():
+                if v is None:
+                    if k in env:
+                        del env[k]
+                else:
+                    env[k] = v
+
+        return ProcessTrace(
+            cwd=cwd, executable=shutil.which(argv[0]), argv=argv, env=env,
+            paths_read=read, paths_written=write, paths_checked=check,
+            exit_code=exit_code)
+
     def test_simple_echo(self):
         argv = ['echo', 'Hello World']
-        expect = ProcessTrace(
-            cwd=Path.cwd(), executable=shutil.which(argv[0]),
-            argv=argv, env=os.environ.copy(),
-            paths_read=[
+        expect = self.expect_trace(argv,
+            read=[
                 "/etc/ld.so.cache",
                 "/usr/lib/libc.so.6",
                 "/usr/lib/locale/locale-archive",
             ],
-            paths_written=[
+            write=[
             ],
-            paths_checked=[
+            check=[
                 ("/etc/ld.so.preload", False),
-            ],
-            exit_code=0)
+            ])
         self.run_test(expect, argv)
 
     def test_cp_one_file(self):
@@ -56,10 +71,8 @@ class TestProcessTrace(unittest.TestCase):
             with p1.open('w'):
                 pass
             argv = ['cp', p1.as_posix(), p2.as_posix()]
-            expect = ProcessTrace(
-                cwd=Path.cwd(), executable=shutil.which(argv[0]),
-                argv=argv, env=os.environ.copy(),
-                paths_read=[
+            expect = self.expect_trace(argv,
+                read=[
                     "/etc/ld.so.cache",
                     "/usr/lib/libc.so.6",
                     "/usr/lib/locale/locale-archive",
@@ -67,15 +80,14 @@ class TestProcessTrace(unittest.TestCase):
                     "/usr/lib/libattr.so.1",
                     p1.as_posix(),
                 ],
-                paths_written=[
+                write=[
                     p2.as_posix(),
                 ],
-                paths_checked=[
+                check=[
                     ("/etc/ld.so.preload", False),
                     (p1.as_posix(), True),
                     (p2.as_posix(), False),
-                ],
-                exit_code=0)
+                ])
             self.run_test(expect, argv)
             self.assertTrue(p1.exists())
             self.assertTrue(p2.exists())
