@@ -77,7 +77,7 @@ class ProcessTrace:
         self.exit_code = exit_code
 
     def forked(self, child_pid):
-        raise NotImplementedError
+        pass  # FIXME: Keep track of forks!?
 
     def chdir(self, path):
         raise NotImplementedError
