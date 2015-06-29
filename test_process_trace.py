@@ -35,6 +35,35 @@ def _init_sh(p):
     p.check('.', True)
 
 
+def _emulate_sh_path_lookup(p, cmd):
+    for path in p.env['PATH'].split(':'):
+        candidate = Path(path, cmd)
+        if candidate.exists():
+            p.check(candidate, True)
+            break
+        else:
+            p.check(candidate, False)
+
+
+def adjust_env(env, adjustments):
+    for k, v in adjustments.items():
+        if v is None:
+            if k in env:
+                del env[k]
+        else:
+            env[k] = v
+
+
+def _launched_from_sh(p):
+    '''Adjust expected process details for a process launched from sh.'''
+    adjust_env(p.env, {
+        '_': p.executable,
+        'SHLVL': str(int(p.env['SHLVL']) + 1),
+        'OLDPWD': None,  # remove
+        'PS1': None,  # remove
+    })
+
+
 class TestProcessTrace(unittest.TestCase):
 
     maxDiff = 4096
@@ -48,8 +77,16 @@ class TestProcessTrace(unittest.TestCase):
         return p
 
     def check_trace(self, expect, actual):
-        if expect.pid is None:
+        # We cannot know the PIDs beforehand, so traverse through the actual
+        # process tree, and copy .pid and .ppid over to the expected instances.
+        def copy_pids(actual, expect):
+            assert expect.pid is None
             expect.pid = actual.pid
+            expect.ppid = actual.ppid
+            for a, e in zip(actual.children, expect.children):
+                copy_pids(a, e)
+        copy_pids(actual, expect)
+
         self.assertEqual(expect.json(), actual.json())
 
     def run_test(self, expect, cmd_args, debug=False, **popen_args):
@@ -83,6 +120,7 @@ class TestProcessTrace(unittest.TestCase):
         argv = ['echo', 'Hello World']
         expect = self.expect_trace(argv)
         _init_c(expect)
+
         self.run_test(expect, argv)
 
     def test_cp_one_file(self):
@@ -90,6 +128,7 @@ class TestProcessTrace(unittest.TestCase):
             p1, p2 = Path(tmpdir, 'foo'), Path(tmpdir, 'bar')
             with p1.open('w'):
                 pass
+
             argv = ['cp', p1.as_posix(), p2.as_posix()]
             expect = self.expect_trace(
                 argv,
@@ -106,6 +145,7 @@ class TestProcessTrace(unittest.TestCase):
                     (p2, False),
                 ])
             _init_c(expect)
+
             self.run_test(expect, argv)
             self.assertTrue(p1.exists())
             self.assertTrue(p2.exists())
@@ -117,10 +157,31 @@ class TestProcessTrace(unittest.TestCase):
             with script_abs.open('w') as f:
                 f.write('#!/bin/sh\n\necho "Hello World"\n')
             script_abs.chmod(0o755)
+
             argv = [script]
             expect = self.expect_trace(argv, cwd=tmpdir, read=[script])
             _init_sh(expect)
+
             self.run_test(expect, argv, cwd=tmpdir)
+
+    def test_shell_scipt_with_fork(self):
+        with TemporaryDirectory() as tmpdir:
+            script = Path(tmpdir, 'fork.sh')
+            with script.open('w') as f:
+                f.write('#!/bin/sh\n\ndmesg\n')
+            script.chmod(0o755)
+
+            argv = [script.as_posix()]
+            expect_sh = self.expect_trace(argv, read=[script])
+            _init_sh(expect_sh)
+            _emulate_sh_path_lookup(expect_sh, 'dmesg')
+
+            expect_dmesg = self.expect_trace(['dmesg'], read=['/dev/kmsg'])
+            _init_c(expect_dmesg)
+            _launched_from_sh(expect_dmesg)
+            expect_sh.children.append(expect_dmesg)
+
+            self.run_test(expect_sh, argv)
 
 
 if __name__ == '__main__':
