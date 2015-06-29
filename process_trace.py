@@ -64,13 +64,13 @@ class ProcessTrace:
         self.env = env
 
     def read(self, path):
-        self.paths_read.add((path, self.cwd / path))
+        self.paths_read.add((str(path), self.cwd / path))
 
     def write(self, path):
-        self.paths_written.add((path, self.cwd / path))
+        self.paths_written.add((str(path), self.cwd / path))
 
     def check(self, path, exists):
-        self.paths_checked.add((path, self.cwd / path, exists))
+        self.paths_checked.add((str(path), self.cwd / path, exists))
 
     def exit(self, exit_code):
         assert self.exit_code is None

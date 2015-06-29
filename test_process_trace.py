@@ -79,14 +79,14 @@ class TestProcessTrace(unittest.TestCase):
                 read=[
                     "/usr/lib/libacl.so.1",
                     "/usr/lib/libattr.so.1",
-                    p1.as_posix(),
+                    p1,
                 ],
                 write=[
-                    p2.as_posix(),
+                    p2,
                 ],
                 check=[
-                    (p1.as_posix(), True),
-                    (p2.as_posix(), False),
+                    (p1, True),
+                    (p2, False),
                 ])
             _init_c(expect)
             self.run_test(expect, argv)
