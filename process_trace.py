@@ -41,7 +41,7 @@ class ProcessTrace:
                  paths_checked=None, exit_code=None):
         self.pid = pid
         self.ppid = ppid
-        self.cwd = cwd or Path.cwd()
+        self.cwd = Path.cwd() if cwd is None else Path(cwd)
         self.executable = None if executable is None else self.cwd / executable
         self.argv = argv
         self.env = env

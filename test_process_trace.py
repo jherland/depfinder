@@ -26,11 +26,11 @@ class TestProcessTrace(unittest.TestCase):
 
     maxDiff = 4096
 
-    def run_trace(self, cmd_args, debug=False, **popen_args):
+    def run_trace(self, cmd_args, debug=False, cwd=None, **popen_args):
         strace_helper.logger.setLevel(
             logging.DEBUG if debug else logging.WARNING)
-        p = ProcessTrace.from_events(strace_helper.run_trace(
-            cmd_args, log_events=debug,
+        p = ProcessTrace.from_events(cwd=cwd, events=strace_helper.run_trace(
+            cmd_args, cwd=cwd, log_events=debug,
             stdout=DEVNULL, stderr=DEVNULL, **popen_args))
         return p
 
@@ -46,7 +46,11 @@ class TestProcessTrace(unittest.TestCase):
     def expect_trace(self, argv, cwd=None, adjust_env=None, read=None,
                      write=None, check=None, exit_code=0):
         '''Helper method for setting up an expected ProcessTrace object.'''
-        cwd = cwd if cwd else Path.cwd()
+        cwd = Path.cwd() if cwd is None else Path(cwd)
+        if argv[0].startswith('./'):
+            executable = Path(cwd, argv[0])
+        else:
+            executable = Path(shutil.which(argv[0]))
         env = os.environ.copy()
         if adjust_env is not None:
             for k, v in adjust_env.items():
@@ -57,7 +61,7 @@ class TestProcessTrace(unittest.TestCase):
                     env[k] = v
 
         p = ProcessTrace(
-            cwd=cwd, executable=shutil.which(argv[0]), argv=argv, env=env,
+            cwd=cwd, executable=executable, argv=argv, env=env,
             paths_read=read, paths_written=write, paths_checked=check,
             exit_code=exit_code)
         return p
