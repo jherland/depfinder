@@ -80,7 +80,8 @@ class Test_run_trace(unittest.TestCase):
         if env is not None:
             for k, v in env.items():
                 if v is None:
-                    del expect_env[k]
+                    if k in expect_env:
+                        del expect_env[k]
                 else:
                     expect_env[k] = v
 
