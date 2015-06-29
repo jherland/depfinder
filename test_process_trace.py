@@ -1,18 +1,25 @@
+import logging
 import os
 from pathlib import Path
 import shutil
 import unittest
 
 from process_trace import ProcessTrace
-from strace_helper import run_trace
+import strace_helper
+
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 class TestProcessTrace(unittest.TestCase):
 
     maxDiff = 4096
 
-    def run_trace(self, cmd_args, **popen_args):
-        p = ProcessTrace.from_events(run_trace(cmd_args, **popen_args))
+    def run_trace(self, cmd_args, debug=False, **popen_args):
+        strace_helper.logger.setLevel(
+            logging.DEBUG if debug else logging.WARNING)
+        p = ProcessTrace.from_events(
+            strace_helper.run_trace(cmd_args, log_events=debug, **popen_args))
         return p
 
     def check_trace(self, expect, actual):
@@ -20,8 +27,8 @@ class TestProcessTrace(unittest.TestCase):
             expect.pid = actual.pid
         self.assertEqual(expect.json(), actual.json())
 
-    def run_test(self, expect, cmd_args, **popen_args):
-        actual = self.run_trace(cmd_args, **popen_args)
+    def run_test(self, expect, cmd_args, debug=False, **popen_args):
+        actual = self.run_trace(cmd_args, debug, **popen_args)
         self.check_trace(expect, actual)
 
     def test_simple_echo(self):
