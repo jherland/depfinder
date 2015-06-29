@@ -12,6 +12,25 @@ import strace_helper
 logging.basicConfig(level=logging.DEBUG)
 
 
+def _loader(p):
+    p.read('/etc/ld.so.cache')
+    p.check('/etc/ld.so.preload', False)
+
+
+def _libc(p):
+    p.read('/usr/lib/libc.so.6')
+
+
+def _locale_archive(p):
+    p.read('/usr/lib/locale/locale-archive')
+
+
+def _init_c(p):
+    _loader(p)
+    _libc(p)
+    _locale_archive(p)
+
+
 class TestProcessTrace(unittest.TestCase):
 
     maxDiff = 4096
@@ -33,7 +52,7 @@ class TestProcessTrace(unittest.TestCase):
         self.check_trace(expect, actual)
 
     def expect_trace(self, argv, cwd=None, adjust_env=None, read=None,
-                     write=None, check=None, exit_code=0):
+                     write=None, check=None, exit_code=0, fill_ins=None):
         '''Helper method for setting up an expected ProcessTrace object.'''
         cwd = cwd if cwd else Path.cwd()
         env = os.environ.copy()
@@ -45,24 +64,18 @@ class TestProcessTrace(unittest.TestCase):
                 else:
                     env[k] = v
 
-        return ProcessTrace(
+        p = ProcessTrace(
             cwd=cwd, executable=shutil.which(argv[0]), argv=argv, env=env,
             paths_read=read, paths_written=write, paths_checked=check,
             exit_code=exit_code)
+        if fill_ins is not None:
+            for fill_in in fill_ins:
+                fill_in(p)
+        return p
 
     def test_simple_echo(self):
         argv = ['echo', 'Hello World']
-        expect = self.expect_trace(argv,
-            read=[
-                "/etc/ld.so.cache",
-                "/usr/lib/libc.so.6",
-                "/usr/lib/locale/locale-archive",
-            ],
-            write=[
-            ],
-            check=[
-                ("/etc/ld.so.preload", False),
-            ])
+        expect = self.expect_trace(argv, fill_ins=[_init_c])
         self.run_test(expect, argv)
 
     def test_cp_one_file(self):
@@ -71,11 +84,9 @@ class TestProcessTrace(unittest.TestCase):
             with p1.open('w'):
                 pass
             argv = ['cp', p1.as_posix(), p2.as_posix()]
-            expect = self.expect_trace(argv,
+            expect = self.expect_trace(
+                argv, fill_ins=[_init_c],
                 read=[
-                    "/etc/ld.so.cache",
-                    "/usr/lib/libc.so.6",
-                    "/usr/lib/locale/locale-archive",
                     "/usr/lib/libacl.so.1",
                     "/usr/lib/libattr.so.1",
                     p1.as_posix(),
@@ -84,13 +95,13 @@ class TestProcessTrace(unittest.TestCase):
                     p2.as_posix(),
                 ],
                 check=[
-                    ("/etc/ld.so.preload", False),
                     (p1.as_posix(), True),
                     (p2.as_posix(), False),
                 ])
             self.run_test(expect, argv)
             self.assertTrue(p1.exists())
             self.assertTrue(p2.exists())
+
 
 if __name__ == '__main__':
     unittest.main()
