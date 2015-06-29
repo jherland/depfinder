@@ -8,6 +8,7 @@ import unittest
 
 from process_trace import ProcessTrace
 import strace_helper
+from test_utils import adjust_env
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -43,15 +44,6 @@ def _emulate_sh_path_lookup(p, cmd):
             break
         else:
             p.check(candidate, False)
-
-
-def adjust_env(env, adjustments):
-    for k, v in adjustments.items():
-        if v is None:
-            if k in env:
-                del env[k]
-        else:
-            env[k] = v
 
 
 def _launched_from_sh(p):
