@@ -6,12 +6,29 @@ class ProcessTrace:
     '''Summarize trace events from a process.'''
 
     @classmethod
-    def from_events(cls, events):
-        pids = {}  # map pid -> ProcessTrace instance
+    def from_events(cls, events, cwd=None):
+        '''Build a tree of ProcessTrace objecs from the given trace events.
+
+        Return the first/root ProcessTrace instance; the others can be found by
+        traversing root.children.
+        '''
+        # Establish root process. Every other process hangs off this one.
+        pid, event, args = next(events)
+        root = ProcessTrace(pid=pid, cwd=cwd)
+        getattr(root, event)(*args)  # handle first trace event
+
+        running = {pid: root}  # pid -> ProcessTrace for running processes
+
         for pid, event, args in events:
-            p = pids.setdefault(pid, cls(pid))
-            getattr(p, event)(*args)
-        return pids[min(pids.keys())]
+            assert pid in running
+            p = running[pid]
+            getattr(p, event)(*args)  # handle trace event
+
+            if event == 'exit':
+                del running[pid]
+
+        assert not running  # all processes have exited
+        return root
 
     def __init__(self, pid=None, ppid=None, cwd=None, executable=None,
                  argv=None, env=None, paths_read=None, paths_written=None,
