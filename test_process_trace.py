@@ -24,6 +24,15 @@ def _init_c(p):
     p.read('/usr/lib/locale/locale-archive')
 
 
+def _init_sh(p):
+    _init_c(p)
+    p.read('/usr/lib/libdl.so.2')
+    p.read('/usr/lib/libncursesw.so.5')
+    p.read('/usr/lib/libreadline.so.6')
+    p.write('/dev/tty')
+    p.read('/proc/meminfo')
+    p.check(p.env['PWD'], True)
+    p.check('.', True)
 
 
 class TestProcessTrace(unittest.TestCase):
@@ -100,6 +109,18 @@ class TestProcessTrace(unittest.TestCase):
             self.run_test(expect, argv)
             self.assertTrue(p1.exists())
             self.assertTrue(p2.exists())
+
+    def test_simple_shell_scipt_with_cwd(self):
+        with TemporaryDirectory() as tmpdir:
+            script = './hello.sh'
+            script_abs = Path(tmpdir, script)
+            with script_abs.open('w') as f:
+                f.write('#!/bin/sh\n\necho "Hello World"\n')
+            script_abs.chmod(0o755)
+            argv = [script]
+            expect = self.expect_trace(argv, cwd=tmpdir, read=[script])
+            _init_sh(expect)
+            self.run_test(expect, argv, cwd=tmpdir)
 
 
 if __name__ == '__main__':
