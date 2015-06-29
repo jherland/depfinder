@@ -8,21 +8,20 @@ import unittest
 
 from process_trace import ProcessTrace
 import strace_helper
-from test_utils import adjust_env
+from test_utils import adjust_env, prepare_trace_environment
 
 
 logging.basicConfig(level=logging.DEBUG)
-
-# Prevent extra libs/files from being loaded/read when commands need to
-# produced localized (error) messages.
-os.environ['LANG'] = 'C'
+prepare_trace_environment()
 
 
 def _init_c(p):
     p.read('/etc/ld.so.cache')
     p.check('/etc/ld.so.preload', False)
     p.read('/usr/lib/libc.so.6')
-    p.read('/usr/lib/locale/locale-archive')
+    locale_vars = {'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES', 'LC_NUMERIC'}
+    if locale_vars & set(p.env.keys()):
+        p.read('/usr/lib/locale/locale-archive')
 
 
 def _init_sh(p):
@@ -32,8 +31,9 @@ def _init_sh(p):
     p.read('/usr/lib/libreadline.so.6')
     p.write('/dev/tty')
     p.read('/proc/meminfo')
-    p.check(p.env['PWD'], True)
-    p.check('.', True)
+    if 'PWD' in p.env:
+        p.check(p.env['PWD'], True)
+        p.check('.', True)
 
 
 def _emulate_sh_path_lookup(p, cmd):
@@ -50,9 +50,10 @@ def _launched_from_sh(p):
     '''Adjust expected process details for a process launched from sh.'''
     adjust_env(p.env, {
         '_': p.executable,
-        'SHLVL': str(int(p.env['SHLVL']) + 1),
         'OLDPWD': None,  # remove
+        'PWD': p.cwd.as_posix(),
         'PS1': None,  # remove
+        'SHLVL': str(int(p.env.get('SHLVL', 0)) + 1),
     })
 
 
