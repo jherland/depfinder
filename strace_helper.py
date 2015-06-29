@@ -44,7 +44,7 @@ class StraceOutputParser:
         - 'read' (path)
         - 'write' (path)
         - 'check' (path, exists)
-        - 'forked' (child_pid)
+        - 'fork' (child_pid)
         - 'chdir' (path)
     '''
 
@@ -181,7 +181,7 @@ class StraceOutputParser:
         assert flags == {
             'CLONE_CHILD_CLEARTID', 'CLONE_CHILD_SETTID', 'SIGCHLD'}
         assert ret > 0 and not rest
-        yield pid, 'forked', (ret,)
+        yield pid, 'fork', (ret,)
 
     def _handle_syscall_execve(self, pid, func, args, ret, rest):
         executable, argv, env_s = self._parse_args('s,a,a', args)
@@ -270,7 +270,7 @@ class StraceOutputParser:
     def _handle_syscall_vfork(self, pid, func, args, ret, rest):
         assert args == ''
         assert ret > 0 and not rest
-        yield pid, 'forked', (ret,)
+        yield pid, 'fork', (ret,)
 
     def _ignore_syscall(self, pid, func, args, ret, rest):
         logger.debug('IGNORING: {} {}({}) = {} {}'.format(

@@ -93,7 +93,7 @@ class ProcessTrace:
         assert self.exit_code is None
         self.exit_code = exit_code
 
-    def forked(self, child_pid):
+    def fork(self, child_pid):
         pass  # FIXME: Keep track of forks!?
 
     def chdir(self, path):
