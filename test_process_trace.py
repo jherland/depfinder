@@ -8,7 +8,7 @@ import unittest
 
 from process_trace import ProcessTrace
 import strace_helper
-from test_utils import adjust_env, prepare_trace_environment
+from test_utils import adjust_env, prepare_trace_environment, do_sh_path_lookup
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -37,13 +37,8 @@ def _init_sh(p):
 
 
 def _emulate_sh_path_lookup(p, cmd):
-    for path in p.env['PATH'].split(':'):
-        candidate = Path(path, cmd)
-        if candidate.exists():
-            p.check(candidate, True)
-            break
-        else:
-            p.check(candidate, False)
+    for path in do_sh_path_lookup(cmd, p.env['PATH']):
+        p.check(path, path.exists())
 
 
 def _launched_from_sh(p):

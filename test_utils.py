@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 
 def adjust_env(env, adjustments=None, keep=None):
@@ -45,6 +46,26 @@ def prepare_trace_environment():
     the trace behave as deterministically as possible.
     '''
     adjust_env(os.environ, keep={'PATH', 'PWD', 'SHELL'})
+
+
+def do_sh_path_lookup(cmd, env_path=None):
+    '''Generate the paths queried when sh looks for 'cmd' in $PATH.
+
+    >>> it = do_sh_path_lookup('blarg', '/bin:/usr/bin:/usr/local/bin')
+    >>> next(it) == Path('/bin/blarg')
+    True
+    >>> next(it) == Path('/usr/bin/blarg')
+    True
+    >>> next(it) == Path('/usr/local/bin/blarg')
+    True
+    '''
+    if env_path is None:
+        env_path = os.environ.get('PATH', '')
+    for path in env_path.split(':'):
+        candidate = Path(path, cmd)
+        yield candidate
+        if candidate.exists():
+            break
 
 
 if __name__ == "__main__":
