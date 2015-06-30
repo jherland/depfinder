@@ -7,13 +7,11 @@ from tempfile import TemporaryDirectory
 import unittest
 
 import strace_helper
+from test_utils import prepare_trace_environment
 
 
 logging.basicConfig(level=logging.DEBUG)
-
-# Prevent extra libs/files from being loaded/read when commands need to
-# produced localized (error) messages.
-os.environ['LANG'] = 'C'
+prepare_trace_environment()
 
 # The following are common trace events seen at the start of many processes.
 LOADER = [
@@ -31,17 +29,14 @@ LIBDL = [('read', ('/usr/lib/libdl.so.2',))]
 LIBGUILE = [('read', ('/usr/lib/libguile-2.0.so.22',))]
 LIBPTHREAD = [('read', ('/usr/lib/libpthread.so.0',))]
 
-LOCALE_ARCHIVE = [('read', ('/usr/lib/locale/locale-archive',))]
-
 INIT_C = LOADER + LIBC
-INIT_C_LOCALE = INIT_C + LOCALE_ARCHIVE
+INIT_C_LOCALE = INIT_C
 
-INIT_LS = LOADER + LIBCAP + LIBACL + LIBC + LIBATTR + LOCALE_ARCHIVE
-INIT_MV = LOADER + LIBACL + LIBATTR + LIBC + LOCALE_ARCHIVE
+INIT_LS = LOADER + LIBCAP + LIBACL + LIBC + LIBATTR
+INIT_MV = LOADER + LIBACL + LIBATTR + LIBC
 INIT_SH = (
     LOADER + LIBREADLINE + LIBNCURSES + LIBDL + LIBC + [
         ('write', ('/dev/tty',)),
-    ] + LOCALE_ARCHIVE + [
         ('read', ('/proc/meminfo',)),
         ('check', (os.getcwd(), True)),
         ('check', ('.', True)),
@@ -56,7 +51,7 @@ INIT_MAKE = (
         ('read', ('/usr/lib/libcrypt.so.1',)),
         ('read', ('/usr/lib/libm.so.6',)),
         ('read', ('/usr/lib/libatomic_ops.so.1',)),
-    ] + LOCALE_ARCHIVE)
+    ])
 
 # Sentinel for disabling the complete even trace checks in run_test()
 WHATEVER = object()
@@ -342,7 +337,7 @@ dmesg
             # sh applies the following env changes to its subprocesses
             adjust_env = {
                 '_': dmesg.as_posix(),
-                'SHLVL': str(int(os.environ['SHLVL']) + 1),
+                'SHLVL': str(int(os.environ.get('SHLVL', 0)) + 1),
                 'OLDPWD': None,  # delete
                 'PS1': None,  # delete
             }
