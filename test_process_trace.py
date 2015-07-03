@@ -2,7 +2,7 @@ import logging
 import os
 from pathlib import Path
 import shutil
-from subprocess import DEVNULL
+from subprocess import check_output, DEVNULL
 from tempfile import TemporaryDirectory
 import unittest
 
@@ -15,36 +15,72 @@ logging.basicConfig(level=logging.DEBUG)
 test_utils.prepare_trace_environment()
 
 
+def load_libs_from_ld_so_cache():
+    d = {}
+    for line in check_output(['ldconfig', '-p']).decode('ascii').splitlines():
+        try:
+            s, path = line.strip().split(' => ')
+            if not s.startswith('lib') or not 'x86-64' in s:
+                raise ValueError
+            name = s.split('.', 1)[0][3:]
+            if name not in d:
+                d[name] = path  # prefer the first entry for 'name'
+        except:
+            pass
+    return d
+
+
+class ExpectedProcessTrace(ProcessTrace):
+    '''Helper class for setting up an expected ProcessTrace object.
+
+    In tests, we set up expected ProcessTrace instances to compare against
+    ProcessTrace instances built from actual trace events.
+
+    This class consists mostly of helper methods for filling in common
+    processes' execution patterns.
+    '''
+
+    Libs = load_libs_from_ld_so_cache()
+
+    def __init__(self, argv, *, cwd=None, env=None, exit_code=0):
+        cwd = Path.cwd() if cwd is None else Path(cwd)
+        if argv[0].startswith('./'):
+            executable = Path(cwd, argv[0])
+        else:
+            executable = Path(shutil.which(argv[0]))
+        if env is None:
+            env = os.environ.copy()
+
+        super().__init__(cwd=cwd, executable=executable, argv=argv, env=env,
+                         exit_code=exit_code)
+
+    def ld(self, *libs):
+        self.read('/etc/ld.so.cache')
+        self.check('/etc/ld.so.preload', False)
+        self.read(self.Libs['c'])
+        for lib in libs:
+            self.read(self.Libs[lib])
+
+        loc_vars = {'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES', 'LC_NUMERIC'}
+        if loc_vars & set(self.env.keys()):
+            self.read('/usr/lib/locale/locale-archive')
+
+    def sh(self):
+        self.ld('dl', 'ncursesw', 'readline')
+        self.write('/dev/tty')
+        self.read('/proc/meminfo')
+        if 'PWD' in self.env:
+            self.check(self.env['PWD'], True)
+            self.check('.', True)
+
+
 class TestProcessTrace(unittest.TestCase):
 
-    maxDiff = 4096
-
-    @classmethod
-    def _init_c(cls, p):
-        p.read('/etc/ld.so.cache')
-        p.check('/etc/ld.so.preload', False)
-        p.read('/usr/lib/libc.so.6')
-        locale_vars = {
-            'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES', 'LC_NUMERIC'}
-        if locale_vars & set(p.env.keys()):
-            p.read('/usr/lib/locale/locale-archive')
-
-    @classmethod
-    def _init_sh(cls, p):
-        cls._init_c(p)
-        p.read('/usr/lib/libdl.so.2')
-        p.read('/usr/lib/libncursesw.so.5')
-        p.read('/usr/lib/libreadline.so.6')
-        p.write('/dev/tty')
-        p.read('/proc/meminfo')
-        if 'PWD' in p.env:
-            p.check(p.env['PWD'], True)
-            p.check('.', True)
+    maxDiff = 40960
 
     @classmethod
     def _init_gcc(cls, p):
-        cls._init_c(p)
-        p.read('/usr/lib/libm.so.6')
+        p.ld('m')
 
         def pairify(iterable):
             prev = None
@@ -93,40 +129,29 @@ class TestProcessTrace(unittest.TestCase):
         p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/specs', False),
         p.check('/usr/lib/x86_64-unknown-linux-gnu/5.1.0/.', False),
 
-        cc1_p = cls.expect_trace(
-            argv=[
-                '/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/cc1',
-                '-quiet',
-                c_file.as_posix(),
-                '-quiet',
-                '-dumpbase',
-                c_file.name,
-                '-mtune=generic',
-                '-march=x86-64',
-                '-auxbase-strip',
-                o_file.as_posix(),
-                '-o',
-                '-'
-            ],
-            read=[
-                c_file.as_posix(),
-                '/dev/urandom',
-                '/proc/meminfo',
-                '/usr/include/stdc-predef.h',
-                '/usr/lib/libdl.so.2',
-                '/usr/lib/libgmp.so.10',
-                '/usr/lib/libm.so.6',
-                '/usr/lib/libmpc.so.3',
-                '/usr/lib/libmpfr.so.4',
-                '/usr/lib/libz.so.1',
-            ],
-            check=[
-                (c_file.as_posix() + '.gch', False),
-                ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/', True),
-                ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/include', False),
-            ])
+        cc1_p = ExpectedProcessTrace([
+            '/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/cc1',
+            '-quiet',
+            c_file.as_posix(),
+            '-quiet',
+            '-dumpbase',
+            c_file.name,
+            '-mtune=generic',
+            '-march=x86-64',
+            '-auxbase-strip',
+            o_file.as_posix(),
+            '-o',
+            '-'
+        ])
         cls._launched_from_gcc(cc1_p, p.argv)
-        cls._init_c(cc1_p)
+        cc1_p.ld('dl', 'gmp', 'm', 'mpc', 'mpfr', 'z')
+        cc1_p.read(c_file.as_posix())
+        cc1_p.read('/dev/urandom')
+        cc1_p.read('/proc/meminfo')
+        cc1_p.read('/usr/include/stdc-predef.h')
+        cc1_p.check(c_file.as_posix() + '.gch', False)
+        cc1_p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/', True),
+        cc1_p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/include', False),
         cls._check_with_parents(cc1_p, '/usr/include/stdc-predef.h.gch', False)
         cls._check_with_parents(cc1_p, '/usr/include/stdc-predef.h', True)
         cls._check_with_parents(cc1_p, '/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h', False)
@@ -137,36 +162,18 @@ class TestProcessTrace(unittest.TestCase):
         cls._check_with_parents(cc1_p, '/usr/local/include/stdc-predef.h.gch', False)
         p.children.append(cc1_p)
 
-        as_p = cls.expect_trace(
-            argv=['as', '--64', '-o', o_file.as_posix()],
-            read=[
-                '/usr/lib/libbfd-2.25.0.so',
-                '/usr/lib/libdl.so.2',
-                '/usr/lib/libopcodes-2.25.0.so',
-                '/usr/lib/libz.so.1',
-            ],
-            write=[o_file],
-            check=[(o_file, False)])
+        as_p = ExpectedProcessTrace(['as', '--64', '-o', o_file.as_posix()])
         cls._emulate_path_lookup(as_p, 'as', only_missing=True)
         cls._launched_from_gcc(as_p, p.argv)
-        cls._init_c(as_p)
+        as_p.ld('bfd-2', 'dl', 'opcodes-2', 'z')
+        as_p.write(o_file)
+        as_p.check(o_file, False)
         p.children.append(as_p)
 
     @classmethod
     def _init_make(cls, p):
-        cls._init_c(p)
-        p.read('/usr/lib/libatomic_ops.so.1')
-        p.read('/usr/lib/libc.so.6')
-        p.read('/usr/lib/libcrypt.so.1')
-        p.read('/usr/lib/libdl.so.2')
-        p.read('/usr/lib/libffi.so.6')
-        p.read('/usr/lib/libgc.so.1')
-        p.read('/usr/lib/libgmp.so.10')
-        p.read('/usr/lib/libguile-2.0.so.22')
-        p.read('/usr/lib/libltdl.so.7')
-        p.read('/usr/lib/libm.so.6')
-        p.read('/usr/lib/libpthread.so.0')
-        p.read('/usr/lib/libunistring.so.2')
+        p.ld('atomic_ops', 'crypt', 'dl', 'ffi', 'gc', 'gmp', 'guile-2',
+             'ltdl', 'm', 'pthread', 'unistring')
 
         p.check('.', True)
         p.read('.')
@@ -255,59 +262,25 @@ class TestProcessTrace(unittest.TestCase):
         actual = self.run_trace(cmd_args, debug, **popen_args)
         self.check_trace(expect, actual)
 
-    @staticmethod
-    def expect_trace(argv, cwd=None, adjust_env=None, read=None,
-                     write=None, check=None, exit_code=0):
-        '''Helper method for setting up an expected ProcessTrace object.'''
-        cwd = Path.cwd() if cwd is None else Path(cwd)
-        if argv[0].startswith('./'):
-            executable = Path(cwd, argv[0])
-        else:
-            executable = Path(shutil.which(argv[0]))
-        env = os.environ.copy()
-        if adjust_env is not None:
-            for k, v in adjust_env.items():
-                if v is None:
-                    if k in env:
-                        del env[k]
-                else:
-                    env[k] = v
-
-        p = ProcessTrace(
-            cwd=cwd, executable=executable, argv=argv, env=env,
-            paths_read=read, paths_written=write, paths_checked=check,
-            exit_code=exit_code)
-        return p
-
     def test_simple_echo(self):
         argv = ['echo', 'Hello World']
-        expect = self.expect_trace(argv)
-        self._init_c(expect)
+        expect = ExpectedProcessTrace(argv)
+        expect.ld()
 
         self.run_test(expect, argv)
 
     def test_cp_one_file(self):
         with TemporaryDirectory() as tmpdir:
             p1, p2 = Path(tmpdir, 'foo'), Path(tmpdir, 'bar')
-            with p1.open('w'):
-                pass
+            p1.open('w').close()
 
             argv = ['cp', p1.as_posix(), p2.as_posix()]
-            expect = self.expect_trace(
-                argv,
-                read=[
-                    '/usr/lib/libacl.so.1',
-                    '/usr/lib/libattr.so.1',
-                    p1,
-                ],
-                write=[
-                    p2,
-                ],
-                check=[
-                    (p1, True),
-                    (p2, False),
-                ])
-            self._init_c(expect)
+            expect = ExpectedProcessTrace(argv)
+            expect.ld('acl', 'attr')
+            expect.check(p1, True)
+            expect.check(p2, False)
+            expect.read(p1)
+            expect.write(p2)
 
             self.run_test(expect, argv)
             self.assertTrue(p1.exists())
@@ -322,8 +295,9 @@ class TestProcessTrace(unittest.TestCase):
             script_abs.chmod(0o755)
 
             argv = [script]
-            expect = self.expect_trace(argv, cwd=tmpdir, read=[script])
-            self._init_sh(expect)
+            expect = ExpectedProcessTrace(argv, cwd=tmpdir)
+            expect.sh()
+            expect.read(script)
 
             self.run_test(expect, argv, cwd=tmpdir)
 
@@ -335,12 +309,14 @@ class TestProcessTrace(unittest.TestCase):
             script.chmod(0o755)
 
             argv = [script.as_posix()]
-            expect_sh = self.expect_trace(argv, read=[script])
-            self._init_sh(expect_sh)
+            expect_sh = ExpectedProcessTrace(argv)
+            expect_sh.sh()
+            expect_sh.read(script)
             self._emulate_path_lookup(expect_sh, 'dmesg')
 
-            expect_dmesg = self.expect_trace(['dmesg'], read=['/dev/kmsg'])
-            self._init_c(expect_dmesg)
+            expect_dmesg = ExpectedProcessTrace(['dmesg'])
+            expect_dmesg.ld()
+            expect_dmesg.read('/dev/kmsg')
             self._launched_from_sh(expect_dmesg)
             expect_sh.children.append(expect_dmesg)
 
@@ -358,7 +334,7 @@ class TestProcessTrace(unittest.TestCase):
                 '-c', c_file.as_posix(),
                 '-o', o_file.as_posix(),
             ]
-            expect_gcc = self.expect_trace(argv)
+            expect_gcc = ExpectedProcessTrace(argv)
             self._init_gcc(expect_gcc)
 
             self.assertFalse(o_file.exists())
@@ -373,24 +349,19 @@ class TestProcessTrace(unittest.TestCase):
                 f.write('output_file:\n\techo "Hello, World!" > $@\n')
 
             argv = ['make']
-            expect_make = self.expect_trace(
-                argv,
-                cwd=tmpdir,
-                read=[makefile.name],
-                check=[
-                    (makefile.name, True),
-                    (target.name, False),
-                    (target.name, True),
-                ])
+            expect_make = ExpectedProcessTrace(argv, cwd=tmpdir)
             self._init_make(expect_make)
+            expect_make.check(makefile.name, True)
+            expect_make.read(makefile.name)
+            expect_make.check(target.name, False)
+            expect_make.check(target.name, True)
 
-            expect_rule = self.expect_trace(
-                argv=['/bin/sh', '-c', 'echo "Hello, World!" > {}'.format(
-                    target.name)],
-                cwd=tmpdir,
-                write=[target.name])
+            argv_rule = ['/bin/sh', '-c', 'echo "Hello, World!" > {}'.format(
+                target.name)]
+            expect_rule = ExpectedProcessTrace(argv_rule, cwd=tmpdir)
             self._launched_from_make(expect_rule)
-            self._init_sh(expect_rule)
+            expect_rule.sh()
+            expect_rule.write(target.name)
             expect_make.children.append(expect_rule)
 
             self.assertFalse(target.exists())
