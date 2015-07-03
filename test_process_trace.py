@@ -42,6 +42,30 @@ class TestProcessTrace(unittest.TestCase):
             p.check('.', True)
 
     @classmethod
+    def _init_make(cls, p):
+        cls._init_c(p)
+        p.read('/usr/lib/libatomic_ops.so.1')
+        p.read('/usr/lib/libc.so.6')
+        p.read('/usr/lib/libcrypt.so.1')
+        p.read('/usr/lib/libdl.so.2')
+        p.read('/usr/lib/libffi.so.6')
+        p.read('/usr/lib/libgc.so.1')
+        p.read('/usr/lib/libgmp.so.10')
+        p.read('/usr/lib/libguile-2.0.so.22')
+        p.read('/usr/lib/libltdl.so.7')
+        p.read('/usr/lib/libm.so.6')
+        p.read('/usr/lib/libpthread.so.0')
+        p.read('/usr/lib/libunistring.so.2')
+
+        p.check('.', True)
+        p.read('.')
+        p.check('RCS', False)
+        p.check('SCCS', False)
+        p.check('/usr/gnu/include', False)
+        p.check('/usr/local/include', True)
+        p.check('/usr/include', True)
+
+    @classmethod
     def _emulate_path_lookup(cls, p, cmd, only_missing=False):
         for path in do_sh_path_lookup(cmd, p.env['PATH']):
             if not only_missing or not path.exists():
@@ -75,6 +99,15 @@ class TestProcessTrace(unittest.TestCase):
             'COLLECT_GCC': gcc_args[0],
             'COLLECT_GCC_OPTIONS': ' '.join(
                 "'{}'".format(opt) for opt in collect_options),
+        })
+
+    @classmethod
+    def _launched_from_make(cls, p):
+        '''Adjust expected process details for a process launched from make.'''
+        adjust_env(p.env, {
+            'MAKEFLAGS': '',
+            'MAKELEVEL': str(int(p.env.get('MAKELEVEL', 0)) + 1),
+            'MFLAGS': '',
         })
 
     @classmethod
@@ -312,6 +345,38 @@ class TestProcessTrace(unittest.TestCase):
             self.assertFalse(o_file.exists())
             self.run_test(expect_gcc, argv, stdout=None, stderr=None)
             self.assertTrue(o_file.exists())
+
+    def test_simple_makefile(self):
+        with TemporaryDirectory() as tmpdir:
+            makefile = Path(tmpdir, 'Makefile')
+            target = Path(tmpdir, 'output_file')
+            with makefile.open('w') as f:
+                f.write('output_file:\n\techo "Hello, World!" > $@\n')
+
+            argv = ['make']
+            expect_make = self.expect_trace(
+                argv,
+                cwd=tmpdir,
+                read=[makefile.name],
+                check=[
+                    (makefile.name, True),
+                    (target.name, False),
+                    (target.name, True),
+                ])
+            self._init_make(expect_make)
+
+            expect_rule = self.expect_trace(
+                argv=['/bin/sh', '-c', 'echo "Hello, World!" > {}'.format(
+                    target.name)],
+                cwd=tmpdir,
+                write=[target.name])
+            self._launched_from_make(expect_rule)
+            self._init_sh(expect_rule)
+            expect_make.children.append(expect_rule)
+
+            self.assertFalse(target.exists())
+            self.run_test(expect_make, argv, cwd=tmpdir)
+            self.assertTrue(target.exists())
 
 
 if __name__ == '__main__':
