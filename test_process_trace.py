@@ -61,9 +61,10 @@ class TestProcessTrace(unittest.TestCase):
     def run_trace(self, cmd_args, debug=False, cwd=None, **popen_args):
         strace_helper.logger.setLevel(
             logging.DEBUG if debug else logging.WARNING)
+        popen_args.setdefault('stdout', DEVNULL)
+        popen_args.setdefault('stderr', DEVNULL)
         p = ProcessTrace.from_events(cwd=cwd, events=strace_helper.run_trace(
-            cmd_args, cwd=cwd, log_events=debug,
-            stdout=DEVNULL, stderr=DEVNULL, **popen_args))
+            cmd_args, cwd=cwd, log_events=debug, **popen_args))
         return p
 
     def check_trace(self, expect, actual):
