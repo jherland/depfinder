@@ -15,46 +15,48 @@ logging.basicConfig(level=logging.DEBUG)
 prepare_trace_environment()
 
 
-def _init_c(p):
-    p.read('/etc/ld.so.cache')
-    p.check('/etc/ld.so.preload', False)
-    p.read('/usr/lib/libc.so.6')
-    locale_vars = {'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES', 'LC_NUMERIC'}
-    if locale_vars & set(p.env.keys()):
-        p.read('/usr/lib/locale/locale-archive')
-
-
-def _init_sh(p):
-    _init_c(p)
-    p.read('/usr/lib/libdl.so.2')
-    p.read('/usr/lib/libncursesw.so.5')
-    p.read('/usr/lib/libreadline.so.6')
-    p.write('/dev/tty')
-    p.read('/proc/meminfo')
-    if 'PWD' in p.env:
-        p.check(p.env['PWD'], True)
-        p.check('.', True)
-
-
-def _emulate_sh_path_lookup(p, cmd):
-    for path in do_sh_path_lookup(cmd, p.env['PATH']):
-        p.check(path, path.exists())
-
-
-def _launched_from_sh(p):
-    '''Adjust expected process details for a process launched from sh.'''
-    adjust_env(p.env, {
-        '_': p.executable,
-        'OLDPWD': None,  # remove
-        'PWD': p.cwd.as_posix(),
-        'PS1': None,  # remove
-        'SHLVL': str(int(p.env.get('SHLVL', 0)) + 1),
-    })
-
-
 class TestProcessTrace(unittest.TestCase):
 
     maxDiff = 4096
+
+    @classmethod
+    def _init_c(cls, p):
+        p.read('/etc/ld.so.cache')
+        p.check('/etc/ld.so.preload', False)
+        p.read('/usr/lib/libc.so.6')
+        locale_vars = {
+            'LANG', 'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES', 'LC_NUMERIC'}
+        if locale_vars & set(p.env.keys()):
+            p.read('/usr/lib/locale/locale-archive')
+
+    @classmethod
+    def _init_sh(cls, p):
+        cls._init_c(p)
+        p.read('/usr/lib/libdl.so.2')
+        p.read('/usr/lib/libncursesw.so.5')
+        p.read('/usr/lib/libreadline.so.6')
+        p.write('/dev/tty')
+        p.read('/proc/meminfo')
+        if 'PWD' in p.env:
+            p.check(p.env['PWD'], True)
+            p.check('.', True)
+
+    @classmethod
+    def _emulate_path_lookup(cls, p, cmd):
+        for path in do_sh_path_lookup(cmd, p.env['PATH']):
+            p.check(path, path.exists())
+        return path
+
+    @classmethod
+    def _launched_from_sh(cls, p):
+        '''Adjust expected process details for a process launched from sh.'''
+        adjust_env(p.env, {
+            '_': p.executable,
+            'OLDPWD': None,  # remove
+            'PWD': p.cwd.as_posix(),
+            'PS1': None,  # remove
+            'SHLVL': str(int(p.env.get('SHLVL', 0)) + 1),
+        })
 
     def run_trace(self, cmd_args, debug=False, cwd=None, **popen_args):
         strace_helper.logger.setLevel(
@@ -107,7 +109,7 @@ class TestProcessTrace(unittest.TestCase):
     def test_simple_echo(self):
         argv = ['echo', 'Hello World']
         expect = self.expect_trace(argv)
-        _init_c(expect)
+        self._init_c(expect)
 
         self.run_test(expect, argv)
 
@@ -121,8 +123,8 @@ class TestProcessTrace(unittest.TestCase):
             expect = self.expect_trace(
                 argv,
                 read=[
-                    "/usr/lib/libacl.so.1",
-                    "/usr/lib/libattr.so.1",
+                    '/usr/lib/libacl.so.1',
+                    '/usr/lib/libattr.so.1',
                     p1,
                 ],
                 write=[
@@ -132,7 +134,7 @@ class TestProcessTrace(unittest.TestCase):
                     (p1, True),
                     (p2, False),
                 ])
-            _init_c(expect)
+            self._init_c(expect)
 
             self.run_test(expect, argv)
             self.assertTrue(p1.exists())
@@ -148,7 +150,7 @@ class TestProcessTrace(unittest.TestCase):
 
             argv = [script]
             expect = self.expect_trace(argv, cwd=tmpdir, read=[script])
-            _init_sh(expect)
+            self._init_sh(expect)
 
             self.run_test(expect, argv, cwd=tmpdir)
 
@@ -161,12 +163,12 @@ class TestProcessTrace(unittest.TestCase):
 
             argv = [script.as_posix()]
             expect_sh = self.expect_trace(argv, read=[script])
-            _init_sh(expect_sh)
-            _emulate_sh_path_lookup(expect_sh, 'dmesg')
+            self._init_sh(expect_sh)
+            self._emulate_path_lookup(expect_sh, 'dmesg')
 
             expect_dmesg = self.expect_trace(['dmesg'], read=['/dev/kmsg'])
-            _init_c(expect_dmesg)
-            _launched_from_sh(expect_dmesg)
+            self._init_c(expect_dmesg)
+            self._launched_from_sh(expect_dmesg)
             expect_sh.children.append(expect_dmesg)
 
             self.run_test(expect_sh, argv)
