@@ -18,8 +18,14 @@ class ProcessTrace:
         getattr(root, event)(*args)  # handle first trace event
 
         running = {pid: root}  # pid -> ProcessTrace for running processes
+        pending = {}  # pid -> [events...] for "not-yet-running" processes
 
         for pid, event, args in events:
+            if pid not in running:
+                # A child may start generating trace events before its parent's
+                # 'fork' has fully completed.
+                pending.setdefault(pid, []).append((event, args))
+                continue
             assert pid in running
             p = running[pid]
             getattr(p, event)(*args)  # handle trace event
@@ -30,10 +36,18 @@ class ProcessTrace:
                 assert cpid not in running
                 running[cpid] = c
                 p.children.append(c)
+
+                # Finally, handle any pending events that the child may posted
+                # in the meantime
+                if cpid in pending:
+                    for event, args in pending[cpid]:
+                        getattr(c, event)(*args)  # handle trace event
+                    del pending[cpid]
             if event == 'exit':
                 del running[pid]
 
         assert not running  # all processes have exited
+        assert not pending  # no pending events
         return root
 
     def __init__(self, pid=None, ppid=None, cwd=None, executable=None,
