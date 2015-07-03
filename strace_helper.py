@@ -258,7 +258,7 @@ class StraceOutputParser:
     _handle_syscall_lstat = _handle_syscall_stat
 
     def _handle_syscall_unlink(self, pid, func, args, ret, rest):
-        path = self._parse_args('s', args)
+        path, = self._parse_args('s', args)
         assert ret == 0 and not rest
         yield pid, 'write', (path,)
 
