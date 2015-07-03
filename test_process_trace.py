@@ -42,9 +42,10 @@ class TestProcessTrace(unittest.TestCase):
             p.check('.', True)
 
     @classmethod
-    def _emulate_path_lookup(cls, p, cmd):
+    def _emulate_path_lookup(cls, p, cmd, only_missing=False):
         for path in do_sh_path_lookup(cmd, p.env['PATH']):
-            p.check(path, path.exists())
+            if not only_missing or not path.exists():
+                p.check(path, path.exists())
         return path
 
     @classmethod
@@ -57,6 +58,32 @@ class TestProcessTrace(unittest.TestCase):
             'PS1': None,  # remove
             'SHLVL': str(int(p.env.get('SHLVL', 0)) + 1),
         })
+
+    @classmethod
+    def _launched_from_gcc(cls, p, gcc_args):
+        collect_options = []
+        skip_next = False
+        for arg in gcc_args[1:]:
+            if skip_next:
+                skip_next = False
+            else:
+                collect_options.append(arg)
+                if arg == '-c':
+                    skip_next = True
+        collect_options.extend(['-mtune=generic', '-march=x86-64'])
+        adjust_env(p.env, {
+            'COLLECT_GCC': gcc_args[0],
+            'COLLECT_GCC_OPTIONS': ' '.join(
+                "'{}'".format(opt) for opt in collect_options),
+        })
+
+    @classmethod
+    def _check_with_parents(cls, p, path, exists, include_root=False):
+        p.check(path, exists)
+        for parent in Path(path).parents:
+            if not include_root and parent == Path(parent.root):
+                break
+            p.check(parent, True)
 
     def run_trace(self, cmd_args, debug=False, cwd=None, **popen_args):
         strace_helper.logger.setLevel(
@@ -173,6 +200,118 @@ class TestProcessTrace(unittest.TestCase):
             expect_sh.children.append(expect_dmesg)
 
             self.run_test(expect_sh, argv)
+
+    def test_simple_gcc(self):
+        with TemporaryDirectory() as tmpdir:
+            c_file = Path(tmpdir, 'hello.c')
+            o_file = Path(tmpdir, 'hello.o')
+            with c_file.open('w') as f:
+                f.write('int main() { return 0; }')
+
+            argv = [
+                'gcc', '-pipe',
+                '-c', c_file.as_posix(),
+                '-o', o_file.as_posix(),
+            ]
+            expect_gcc = self.expect_trace(
+                argv,
+                read=['/usr/lib/libm.so.6'],
+                check=[
+                    ('/lib/.', True),
+                    ('/lib/../lib/.', True),
+                    ('/lib/x86_64-unknown-linux-gnu/5.1.0/.', False),
+                    ('/usr/lib/.', True),
+                    ('/usr/lib/../lib/.', True),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/.', True),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/', True),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/.', True),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../.', True),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../lib/.', True),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/bin/.', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/bin/as', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/bin/x86_64-unknown-linux-gnu/5.1.0/.', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/bin/x86_64-unknown-linux-gnu/5.1.0/as', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/.', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/../lib/.', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/specs', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/x86_64-unknown-linux-gnu/5.1.0/.', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/x86_64-unknown-linux-gnu/5.1.0/specs', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../x86_64-unknown-linux-gnu/5.1.0/.', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/as', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/cc1', True),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/specs', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/as', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/specs', False),
+                    ('/usr/lib/x86_64-unknown-linux-gnu/5.1.0/.', False),
+                ])
+            self._init_c(expect_gcc)
+            gcc = self._emulate_path_lookup(expect_gcc, 'gcc')
+            self._check_with_parents(expect_gcc, gcc, True)
+            self._check_with_parents(expect_gcc, c_file, True)
+            self._check_with_parents(expect_gcc, o_file, False)
+
+            expect_cc1 = self.expect_trace(
+                argv=[
+                    '/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/cc1',
+                    '-quiet',
+                    c_file.as_posix(),
+                    '-quiet',
+                    '-dumpbase',
+                    c_file.name,
+                    '-mtune=generic',
+                    '-march=x86-64',
+                    '-auxbase-strip',
+                    o_file.as_posix(),
+                    '-o',
+                    '-'
+                ],
+                read=[
+                    c_file.as_posix(),
+                    '/dev/urandom',
+                    '/proc/meminfo',
+                    '/usr/include/stdc-predef.h',
+                    '/usr/lib/libdl.so.2',
+                    '/usr/lib/libgmp.so.10',
+                    '/usr/lib/libm.so.6',
+                    '/usr/lib/libmpc.so.3',
+                    '/usr/lib/libmpfr.so.4',
+                    '/usr/lib/libz.so.1',
+                ],
+                check=[
+                    (c_file.as_posix() + '.gch', False),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/', True),
+                    ('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/include', False),
+                ])
+            self._launched_from_gcc(expect_cc1, argv)
+            self._init_c(expect_cc1)
+            self._check_with_parents(expect_cc1, '/usr/include/stdc-predef.h.gch', False)
+            self._check_with_parents(expect_cc1, '/usr/include/stdc-predef.h', True)
+            self._check_with_parents(expect_cc1, '/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h', False)
+            self._check_with_parents(expect_cc1, '/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h.gch', False)
+            self._check_with_parents(expect_cc1, '/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include/stdc-predef.h', False)
+            self._check_with_parents(expect_cc1, '/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include/stdc-predef.h.gch', False)
+            self._check_with_parents(expect_cc1, '/usr/local/include/stdc-predef.h', False)
+            self._check_with_parents(expect_cc1, '/usr/local/include/stdc-predef.h.gch', False)
+            expect_gcc.children.append(expect_cc1)
+
+            expect_as = self.expect_trace(
+                argv=['as', '--64', '-o', o_file.as_posix()],
+                read=[
+                    '/usr/lib/libbfd-2.25.0.so',
+                    '/usr/lib/libdl.so.2',
+                    '/usr/lib/libopcodes-2.25.0.so',
+                    '/usr/lib/libz.so.1',
+                ],
+                write=[o_file],
+                check=[(o_file, False)])
+            self._emulate_path_lookup(expect_as, 'as', only_missing=True)
+            self._launched_from_gcc(expect_as, argv)
+            self._init_c(expect_as)
+            expect_gcc.children.append(expect_as)
+
+            self.assertFalse(o_file.exists())
+            self.run_test(expect_gcc, argv, stdout=None, stderr=None)
+            self.assertTrue(o_file.exists())
 
 
 if __name__ == '__main__':
