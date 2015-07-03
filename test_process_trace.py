@@ -8,11 +8,11 @@ import unittest
 
 from process_trace import ProcessTrace
 import strace_helper
-from test_utils import adjust_env, prepare_trace_environment, do_sh_path_lookup
+import test_utils
 
 
 logging.basicConfig(level=logging.DEBUG)
-prepare_trace_environment()
+test_utils.prepare_trace_environment()
 
 
 class TestProcessTrace(unittest.TestCase):
@@ -67,7 +67,7 @@ class TestProcessTrace(unittest.TestCase):
 
     @classmethod
     def _emulate_path_lookup(cls, p, cmd, only_missing=False):
-        for path in do_sh_path_lookup(cmd, p.env['PATH']):
+        for path in test_utils.do_sh_path_lookup(cmd, p.env['PATH']):
             if not only_missing or not path.exists():
                 p.check(path, path.exists())
         return path
@@ -75,7 +75,7 @@ class TestProcessTrace(unittest.TestCase):
     @classmethod
     def _launched_from_sh(cls, p):
         '''Adjust expected process details for a process launched from sh.'''
-        adjust_env(p.env, {
+        p.env = test_utils.modified_env(p.env, {
             '_': p.executable,
             'OLDPWD': None,  # remove
             'PWD': p.cwd.as_posix(),
@@ -95,7 +95,7 @@ class TestProcessTrace(unittest.TestCase):
                 if arg == '-c':
                     skip_next = True
         collect_options.extend(['-mtune=generic', '-march=x86-64'])
-        adjust_env(p.env, {
+        p.env = test_utils.modified_env(p.env, {
             'COLLECT_GCC': gcc_args[0],
             'COLLECT_GCC_OPTIONS': ' '.join(
                 "'{}'".format(opt) for opt in collect_options),
@@ -104,7 +104,7 @@ class TestProcessTrace(unittest.TestCase):
     @classmethod
     def _launched_from_make(cls, p):
         '''Adjust expected process details for a process launched from make.'''
-        adjust_env(p.env, {
+        p.env = test_utils.modified_env(p.env, {
             'MAKEFLAGS': '',
             'MAKELEVEL': str(int(p.env.get('MAKELEVEL', 0)) + 1),
             'MFLAGS': '',

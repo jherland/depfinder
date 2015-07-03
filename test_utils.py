@@ -2,41 +2,35 @@ import os
 from pathlib import Path
 
 
-def adjust_env(env, adjustments=None, keep=None):
-    '''Perform adjustments on an (environment) dictionary.
+def modified_env(env, mods=None, keep=None):
+    '''Return a copy of the given environment (dictionary) with modifications.
 
-    The 'env' dictionary is mutated as follows:
-     - 'keep', if given, is a collection of 'env' keys that will be kept. All
-       other keys in 'env' are removed. Keys in 'keep' that are not in 'env'
-       are not added (unless they also appear in 'adjustments'). If 'keep' is
-       None (or not given), nothing is removed from 'env' (at this point).
+    - If 'keep' is given, then only the items in 'env' whose key is also in
+      'keep' are copied. Otherwise all items in 'env' are copied.
 
-     - for 'adjustments' keys whose value is not None, store that key/value
-       pair into 'env' (replacing any previous value that may have been there).
+    - All items in 'mods' whose value is not None are copied, overwriting any
+      existing overlapping items that were copied from 'env'.
 
-     - for 'adjustments' keys whose value is None, remove that key from 'env'.
+    - All items in 'mode' whose value is None are deleted from the resulting
+      dictionary.
 
     >>> env = { 'foo': 1, 'bar': 2, 'baz': 3, 'xyzzy': 4 }
     >>> adjustments = { 'bar': 0, 'baz': None }
     >>> keep = {'foo', 'bar', 'baz'}
-    >>> adjust_env(env, adjustments, keep)
-    >>> env == { 'foo': 1, 'bar': 0 }
+    >>> modified_env(env, adjustments, keep) == { 'foo': 1, 'bar': 0 }
     True
     '''
-    if keep is not None:
-        # Remove anything not in keep
-        for k in list(env.keys()):
-            if k not in keep:
-                del env[k]
+    if keep is None:
+        keep = set(env.keys())
+    if mods is None:
+        changes, drop = {}, set()
+    else:
+        changes = dict((k, v) for k, v in mods.items() if v is not None)
+        drop = set(k for k, v in mods.items() if v is None)
 
-    if adjustments is not None:
-        # Apply adjustments
-        for k, v in adjustments.items():
-            if v is None:
-                if k in env:
-                    del env[k]
-            else:
-                env[k] = v
+    ret = dict((k, v) for k, v in env.items() if k in keep and k not in drop)
+    ret.update(changes)
+    return ret
 
 
 def prepare_trace_environment():
@@ -45,7 +39,9 @@ def prepare_trace_environment():
     Clean up and minimize the environment to ensure the commands executed by
     the trace behave as deterministically as possible.
     '''
-    adjust_env(os.environ, keep={'PATH', 'PWD', 'SHELL'})
+    new_env = modified_env(os.environ, keep={'PATH', 'PWD', 'SHELL'})
+    os.environ.clear()
+    os.environ.update(new_env)
 
 
 def do_sh_path_lookup(cmd, env_path=None):
