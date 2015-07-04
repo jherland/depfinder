@@ -51,8 +51,23 @@ class ExpectedProcessTrace(ProcessTrace):
         if env is None:
             env = os.environ.copy()
 
+        self._child_mods = []  # callables to modify children of this process
+
         super().__init__(cwd=cwd, executable=executable, argv=argv, env=env,
                          exit_code=exit_code)
+
+    def fork_exec(self, argv, **kwargs):
+        child = self.__class__(argv, **kwargs)
+        for mod in self._child_mods:
+            mod(child)
+        self.children.append(child)
+        return child
+
+    def path_lookup(self, name, only_missing=False):
+        for path in test_utils.do_sh_path_lookup(name, self.env['PATH']):
+            if not only_missing or not path.exists():
+                self.check(path, path.exists())
+        return path
 
     def ld(self, *libs):
         self.read('/etc/ld.so.cache')
@@ -72,6 +87,16 @@ class ExpectedProcessTrace(ProcessTrace):
         if 'PWD' in self.env:
             self.check(self.env['PWD'], True)
             self.check('.', True)
+
+        def sh_mod_child_env(child):
+            child.env = test_utils.modified_env(child.env, {
+                '_': child.executable,
+                'OLDPWD': None,  # remove
+                'PWD': child.cwd.as_posix(),
+                'PS1': None,  # remove
+                'SHLVL': str(int(self.env.get('SHLVL', 0)) + 1),
+            })
+        self._child_mods.append(sh_mod_child_env)
 
 
 class TestProcessTrace(unittest.TestCase):
@@ -96,7 +121,7 @@ class TestProcessTrace(unittest.TestCase):
                 o_file = Path(arg)
         assert c_file and o_file
 
-        gcc_executable = cls._emulate_path_lookup(p, 'gcc')
+        gcc_executable = p.path_lookup('gcc')
         cls._check_with_parents(p, gcc_executable, True)
         cls._check_with_parents(p, c_file, True)
         cls._check_with_parents(p, o_file, False)
@@ -163,7 +188,7 @@ class TestProcessTrace(unittest.TestCase):
         p.children.append(cc1_p)
 
         as_p = ExpectedProcessTrace(['as', '--64', '-o', o_file.as_posix()])
-        cls._emulate_path_lookup(as_p, 'as', only_missing=True)
+        as_p.path_lookup('as', only_missing=True)
         cls._launched_from_gcc(as_p, p.argv)
         as_p.ld('bfd-2', 'dl', 'opcodes-2', 'z')
         as_p.write(o_file)
@@ -182,24 +207,6 @@ class TestProcessTrace(unittest.TestCase):
         p.check('/usr/gnu/include', False)
         p.check('/usr/local/include', True)
         p.check('/usr/include', True)
-
-    @classmethod
-    def _emulate_path_lookup(cls, p, cmd, only_missing=False):
-        for path in test_utils.do_sh_path_lookup(cmd, p.env['PATH']):
-            if not only_missing or not path.exists():
-                p.check(path, path.exists())
-        return path
-
-    @classmethod
-    def _launched_from_sh(cls, p):
-        '''Adjust expected process details for a process launched from sh.'''
-        p.env = test_utils.modified_env(p.env, {
-            '_': p.executable,
-            'OLDPWD': None,  # remove
-            'PWD': p.cwd.as_posix(),
-            'PS1': None,  # remove
-            'SHLVL': str(int(p.env.get('SHLVL', 0)) + 1),
-        })
 
     @classmethod
     def _launched_from_gcc(cls, p, gcc_args):
@@ -312,13 +319,11 @@ class TestProcessTrace(unittest.TestCase):
             expect_sh = ExpectedProcessTrace(argv)
             expect_sh.sh()
             expect_sh.read(script)
-            self._emulate_path_lookup(expect_sh, 'dmesg')
+            expect_sh.path_lookup('dmesg')
 
-            expect_dmesg = ExpectedProcessTrace(['dmesg'])
+            expect_dmesg = expect_sh.fork_exec(['dmesg'])
             expect_dmesg.ld()
             expect_dmesg.read('/dev/kmsg')
-            self._launched_from_sh(expect_dmesg)
-            expect_sh.children.append(expect_dmesg)
 
             self.run_test(expect_sh, argv)
 
