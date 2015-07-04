@@ -111,14 +111,8 @@ class ExpectedProcessTrace(ProcessTrace):
             })
         self._child_mods.append(sh_mod_child_env)
 
-
-class TestProcessTrace(unittest.TestCase):
-
-    maxDiff = 40960
-
-    @classmethod
-    def _init_gcc(cls, p):
-        p.ld('m')
+    def gcc(self):
+        self.ld('m')
 
         def pairify(iterable):
             prev = None
@@ -127,47 +121,65 @@ class TestProcessTrace(unittest.TestCase):
                     yield prev, cur
                 prev = cur
 
-        for opt, arg in pairify(p.argv):
+        for opt, arg in pairify(self.argv):
             if opt == '-c':
                 c_file = Path(arg)
             elif opt == '-o':
                 o_file = Path(arg)
         assert c_file and o_file
 
-        gcc_executable = p.path_lookup('gcc')
-        p.check_parents(gcc_executable, True)
-        p.check_parents(c_file, True)
-        p.check_parents(o_file, False)
+        gcc_executable = self.path_lookup('gcc')
+        self.check_parents(gcc_executable, True)
+        self.check_parents(c_file, True)
+        self.check_parents(o_file, False)
 
         # TODO: Research and refactor these:
-        p.check('/lib/.', True),
-        p.check('/lib/../lib/.', True),
-        p.check('/lib/x86_64-unknown-linux-gnu/5.1.0/.', False),
-        p.check('/usr/lib/.', True),
-        p.check('/usr/lib/../lib/.', True),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/.', True),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/', True),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/.', True),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../.', True),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../lib/.', True),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/bin/.', False),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/bin/as', False),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/bin/x86_64-unknown-linux-gnu/5.1.0/.', False),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/bin/x86_64-unknown-linux-gnu/5.1.0/as', False),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/.', False),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/../lib/.', False),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/specs', False),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/x86_64-unknown-linux-gnu/5.1.0/.', False),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/x86_64-unknown-linux-gnu/5.1.0/specs', False),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../x86_64-unknown-linux-gnu/5.1.0/.', False),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/as', False),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/cc1', True),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/specs', False),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/as', False),
-        p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/specs', False),
-        p.check('/usr/lib/x86_64-unknown-linux-gnu/5.1.0/.', False),
+        self.check('/lib/.', True),
+        self.check('/lib/../lib/.', True),
+        self.check('/lib/x86_64-unknown-linux-gnu/5.1.0/.', False),
+        self.check('/usr/lib/.', True),
+        self.check('/usr/lib/../lib/.', True),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/.', True),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/', True),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/.', True),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../.', True),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../lib/.', True),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/bin/.', False),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/bin/as', False),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/bin/x86_64-unknown-linux-gnu/5.1.0/.', False),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/bin/x86_64-unknown-linux-gnu/5.1.0/as', False),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/.', False),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/../lib/.', False),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/specs', False),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/x86_64-unknown-linux-gnu/5.1.0/.', False),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/lib/x86_64-unknown-linux-gnu/5.1.0/specs', False),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../x86_64-unknown-linux-gnu/5.1.0/.', False),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/as', False),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/cc1', True),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/specs', False),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/as', False),
+        self.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/specs', False),
+        self.check('/usr/lib/x86_64-unknown-linux-gnu/5.1.0/.', False),
 
-        cc1_p = ExpectedProcessTrace([
+        def gcc_mod_child_env(child):
+            collect_options = []
+            skip_next = False
+            for arg in self.argv[1:]:
+                if skip_next:
+                    skip_next = False
+                else:
+                    collect_options.append(arg)
+                    if arg == '-c':
+                        skip_next = True
+            collect_options.extend(['-mtune=generic', '-march=x86-64'])
+            child.env = test_utils.modified_env(child.env, {
+                'COLLECT_GCC': self.argv[0],
+                'COLLECT_GCC_OPTIONS': ' '.join(
+                    "'{}'".format(opt) for opt in collect_options),
+            })
+        self._child_mods.append(gcc_mod_child_env)
+
+        expect_cc1 = self.fork_exec([
             '/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/cc1',
             '-quiet',
             c_file.as_posix(),
@@ -181,32 +193,33 @@ class TestProcessTrace(unittest.TestCase):
             '-o',
             '-'
         ])
-        cls._launched_from_gcc(cc1_p, p.argv)
-        cc1_p.ld('dl', 'gmp', 'm', 'mpc', 'mpfr', 'z')
-        cc1_p.read(c_file.as_posix())
-        cc1_p.read('/dev/urandom')
-        cc1_p.read('/proc/meminfo')
-        cc1_p.read('/usr/include/stdc-predef.h')
-        cc1_p.check(c_file.as_posix() + '.gch', False)
-        cc1_p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/', True),
-        cc1_p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/include', False),
-        cc1_p.check_parents('/usr/include/stdc-predef.h.gch', False)
-        cc1_p.check_parents('/usr/include/stdc-predef.h', True)
-        cc1_p.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h', False)
-        cc1_p.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h.gch', False)
-        cc1_p.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include/stdc-predef.h', False)
-        cc1_p.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include/stdc-predef.h.gch', False)
-        cc1_p.check_parents('/usr/local/include/stdc-predef.h', False)
-        cc1_p.check_parents('/usr/local/include/stdc-predef.h.gch', False)
-        p.children.append(cc1_p)
+        expect_cc1.ld('dl', 'gmp', 'm', 'mpc', 'mpfr', 'z')
+        expect_cc1.read(c_file.as_posix())
+        expect_cc1.read('/dev/urandom')
+        expect_cc1.read('/proc/meminfo')
+        expect_cc1.read('/usr/include/stdc-predef.h')
+        expect_cc1.check(c_file.as_posix() + '.gch', False)
+        expect_cc1.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/', True),
+        expect_cc1.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/include', False),
+        expect_cc1.check_parents('/usr/include/stdc-predef.h.gch', False)
+        expect_cc1.check_parents('/usr/include/stdc-predef.h', True)
+        expect_cc1.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h', False)
+        expect_cc1.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h.gch', False)
+        expect_cc1.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include/stdc-predef.h', False)
+        expect_cc1.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include/stdc-predef.h.gch', False)
+        expect_cc1.check_parents('/usr/local/include/stdc-predef.h', False)
+        expect_cc1.check_parents('/usr/local/include/stdc-predef.h.gch', False)
 
-        as_p = ExpectedProcessTrace(['as', '--64', '-o', o_file.as_posix()])
-        as_p.path_lookup('as', only_missing=True)
-        cls._launched_from_gcc(as_p, p.argv)
-        as_p.ld('bfd-2', 'dl', 'opcodes-2', 'z')
-        as_p.write(o_file)
-        as_p.check(o_file, False)
-        p.children.append(as_p)
+        expect_as = self.fork_exec(['as', '--64', '-o', o_file.as_posix()])
+        expect_as.path_lookup('as', only_missing=True)
+        expect_as.ld('bfd-2', 'dl', 'opcodes-2', 'z')
+        expect_as.write(o_file)
+        expect_as.check(o_file, False)
+
+
+class TestProcessTrace(unittest.TestCase):
+
+    maxDiff = 40960
 
     @classmethod
     def _init_make(cls, p):
@@ -220,24 +233,6 @@ class TestProcessTrace(unittest.TestCase):
         p.check('/usr/gnu/include', False)
         p.check('/usr/local/include', True)
         p.check('/usr/include', True)
-
-    @classmethod
-    def _launched_from_gcc(cls, p, gcc_args):
-        collect_options = []
-        skip_next = False
-        for arg in gcc_args[1:]:
-            if skip_next:
-                skip_next = False
-            else:
-                collect_options.append(arg)
-                if arg == '-c':
-                    skip_next = True
-        collect_options.extend(['-mtune=generic', '-march=x86-64'])
-        p.env = test_utils.modified_env(p.env, {
-            'COLLECT_GCC': gcc_args[0],
-            'COLLECT_GCC_OPTIONS': ' '.join(
-                "'{}'".format(opt) for opt in collect_options),
-        })
 
     @classmethod
     def _launched_from_make(cls, p):
@@ -345,7 +340,7 @@ class TestProcessTrace(unittest.TestCase):
                 '-o', o_file.as_posix(),
             ]
             expect_gcc = ExpectedProcessTrace(argv)
-            self._init_gcc(expect_gcc)
+            expect_gcc.gcc()
 
             self.assertFalse(o_file.exists())
             self.run_test(expect_gcc, argv, stdout=None, stderr=None)
