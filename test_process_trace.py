@@ -20,7 +20,7 @@ def load_libs_from_ld_so_cache():
     for line in check_output(['ldconfig', '-p']).decode('ascii').splitlines():
         try:
             s, path = line.strip().split(' => ')
-            if not s.startswith('lib') or not 'x86-64' in s:
+            if not s.startswith('lib') or 'x86-64' not in s:
                 raise ValueError
             name = s.split('.', 1)[0][3:]
             if name not in d:
@@ -89,6 +89,10 @@ class ExpectedProcessTrace(ProcessTrace):
             if parent == root:
                 break
             self.check(parent, True)
+
+    def check_gch(self, path):
+        self.check(str(path) + '.gch', False)
+        return path
 
     def ld(self, *libs):
         self.read('/etc/ld.so.cache')
@@ -206,17 +210,13 @@ class ExpectedProcessTrace(ProcessTrace):
         expect_cc1.read('/dev/urandom')
         expect_cc1.read('/proc/meminfo')
         expect_cc1.read('/usr/include/stdc-predef.h')
-        expect_cc1.check(c_file.as_posix() + '.gch', False)
         expect_cc1.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/', True),
         expect_cc1.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/include', False),
-        expect_cc1.check_parents('/usr/include/stdc-predef.h.gch', False)
-        expect_cc1.check_parents('/usr/include/stdc-predef.h', True)
-        expect_cc1.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h', False)
-        expect_cc1.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h.gch', False)
-        expect_cc1.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include/stdc-predef.h', False)
-        expect_cc1.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include/stdc-predef.h.gch', False)
-        expect_cc1.check_parents('/usr/local/include/stdc-predef.h', False)
-        expect_cc1.check_parents('/usr/local/include/stdc-predef.h.gch', False)
+        expect_cc1.check_parents(expect_cc1.check_gch('/usr/include/stdc-predef.h'), True)
+        expect_cc1.check_parents(expect_cc1.check_gch('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h'), False)
+        expect_cc1.check_parents(expect_cc1.check_gch('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include/stdc-predef.h'), False)
+        expect_cc1.check_parents(expect_cc1.check_gch('/usr/local/include/stdc-predef.h'), False)
+        expect_cc1.check_gch(c_file)
 
         expect_as = self.fork_exec(['as', '--64', '-o', o_file.as_posix()])
         expect_as.path_lookup('as', only_missing=True)
