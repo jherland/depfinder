@@ -69,6 +69,19 @@ class ExpectedProcessTrace(ProcessTrace):
                 self.check(path, path.exists())
         return path
 
+    def check_parents(self, path, exists, stop_at='/'):
+        '''Check path, and path's parent directories.
+
+        Call self.check(path, exists), then self.check(parent, True) for all
+        of path's parent directories until 'stop_at' is encountered.
+        '''
+        self.check(path, exists)
+        root = None if stop_at is None else Path(stop_at)
+        for parent in Path(path).parents:
+            if parent == root:
+                break
+            self.check(parent, True)
+
     def ld(self, *libs):
         self.read('/etc/ld.so.cache')
         self.check('/etc/ld.so.preload', False)
@@ -122,9 +135,9 @@ class TestProcessTrace(unittest.TestCase):
         assert c_file and o_file
 
         gcc_executable = p.path_lookup('gcc')
-        cls._check_with_parents(p, gcc_executable, True)
-        cls._check_with_parents(p, c_file, True)
-        cls._check_with_parents(p, o_file, False)
+        p.check_parents(gcc_executable, True)
+        p.check_parents(c_file, True)
+        p.check_parents(o_file, False)
 
         # TODO: Research and refactor these:
         p.check('/lib/.', True),
@@ -177,14 +190,14 @@ class TestProcessTrace(unittest.TestCase):
         cc1_p.check(c_file.as_posix() + '.gch', False)
         cc1_p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/', True),
         cc1_p.check('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/../../../../x86_64-unknown-linux-gnu/include', False),
-        cls._check_with_parents(cc1_p, '/usr/include/stdc-predef.h.gch', False)
-        cls._check_with_parents(cc1_p, '/usr/include/stdc-predef.h', True)
-        cls._check_with_parents(cc1_p, '/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h', False)
-        cls._check_with_parents(cc1_p, '/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h.gch', False)
-        cls._check_with_parents(cc1_p, '/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include/stdc-predef.h', False)
-        cls._check_with_parents(cc1_p, '/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include/stdc-predef.h.gch', False)
-        cls._check_with_parents(cc1_p, '/usr/local/include/stdc-predef.h', False)
-        cls._check_with_parents(cc1_p, '/usr/local/include/stdc-predef.h.gch', False)
+        cc1_p.check_parents('/usr/include/stdc-predef.h.gch', False)
+        cc1_p.check_parents('/usr/include/stdc-predef.h', True)
+        cc1_p.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h', False)
+        cc1_p.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include-fixed/stdc-predef.h.gch', False)
+        cc1_p.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include/stdc-predef.h', False)
+        cc1_p.check_parents('/usr/lib/gcc/x86_64-unknown-linux-gnu/5.1.0/include/stdc-predef.h.gch', False)
+        cc1_p.check_parents('/usr/local/include/stdc-predef.h', False)
+        cc1_p.check_parents('/usr/local/include/stdc-predef.h.gch', False)
         p.children.append(cc1_p)
 
         as_p = ExpectedProcessTrace(['as', '--64', '-o', o_file.as_posix()])
@@ -234,14 +247,6 @@ class TestProcessTrace(unittest.TestCase):
             'MAKELEVEL': str(int(p.env.get('MAKELEVEL', 0)) + 1),
             'MFLAGS': '',
         })
-
-    @classmethod
-    def _check_with_parents(cls, p, path, exists, include_root=False):
-        p.check(path, exists)
-        for parent in Path(path).parents:
-            if not include_root and parent == Path(parent.root):
-                break
-            p.check(parent, True)
 
     def run_trace(self, cmd_args, debug=False, cwd=None, **popen_args):
         strace_helper.logger.setLevel(
