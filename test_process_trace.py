@@ -216,32 +216,30 @@ class ExpectedProcessTrace(ProcessTrace):
         expect_as.write(o_file)
         expect_as.check(o_file, False)
 
+    def make(self):
+        self.ld('atomic_ops', 'crypt', 'dl', 'ffi', 'gc', 'gmp', 'guile-2',
+                'ltdl', 'm', 'pthread', 'unistring')
+
+        self.check('.', True)
+        self.read('.')
+        self.check('RCS', False)
+        self.check('SCCS', False)
+        self.check('/usr/gnu/include', False)
+        self.check('/usr/local/include', True)
+        self.check('/usr/include', True)
+
+        def make_mod_child_env(child):
+            child.env = test_utils.modified_env(child.env, {
+                'MAKEFLAGS': '',
+                'MAKELEVEL': str(int(child.env.get('MAKELEVEL', 0)) + 1),
+                'MFLAGS': '',
+            })
+        self._child_mods.append(make_mod_child_env)
+
 
 class TestProcessTrace(unittest.TestCase):
 
     maxDiff = 40960
-
-    @classmethod
-    def _init_make(cls, p):
-        p.ld('atomic_ops', 'crypt', 'dl', 'ffi', 'gc', 'gmp', 'guile-2',
-             'ltdl', 'm', 'pthread', 'unistring')
-
-        p.check('.', True)
-        p.read('.')
-        p.check('RCS', False)
-        p.check('SCCS', False)
-        p.check('/usr/gnu/include', False)
-        p.check('/usr/local/include', True)
-        p.check('/usr/include', True)
-
-    @classmethod
-    def _launched_from_make(cls, p):
-        '''Adjust expected process details for a process launched from make.'''
-        p.env = test_utils.modified_env(p.env, {
-            'MAKEFLAGS': '',
-            'MAKELEVEL': str(int(p.env.get('MAKELEVEL', 0)) + 1),
-            'MFLAGS': '',
-        })
 
     def run_trace(self, cmd_args, debug=False, cwd=None, **popen_args):
         strace_helper.logger.setLevel(
@@ -355,7 +353,7 @@ class TestProcessTrace(unittest.TestCase):
 
             argv = ['make']
             expect_make = ExpectedProcessTrace(argv, cwd=tmpdir)
-            self._init_make(expect_make)
+            expect_make.make()
             expect_make.check(makefile.name, True)
             expect_make.read(makefile.name)
             expect_make.check(target.name, False)
@@ -363,11 +361,9 @@ class TestProcessTrace(unittest.TestCase):
 
             argv_rule = ['/bin/sh', '-c', 'echo "Hello, World!" > {}'.format(
                 target.name)]
-            expect_rule = ExpectedProcessTrace(argv_rule, cwd=tmpdir)
-            self._launched_from_make(expect_rule)
+            expect_rule = expect_make.fork_exec(argv_rule, cwd=tmpdir)
             expect_rule.sh()
             expect_rule.write(target.name)
-            expect_make.children.append(expect_rule)
 
             self.assertFalse(target.exists())
             self.run_test(expect_make, argv, cwd=tmpdir)
