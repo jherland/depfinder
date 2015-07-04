@@ -56,6 +56,14 @@ class ExpectedProcessTrace(ProcessTrace):
         super().__init__(cwd=cwd, executable=executable, argv=argv, env=env,
                          exit_code=exit_code)
 
+    def copy_pids_from_actual(self, actual):
+        '''Copy .pid and .ppid recursively from the given ProcessTrace.'''
+        assert self.pid is None and self.ppid is None
+        self.pid = actual.pid
+        self.ppid = actual.ppid
+        for exp_child, act_child in zip(self.children, actual.children):
+            exp_child.copy_pids_from_actual(act_child)
+
     def fork_exec(self, argv, **kwargs):
         child = self.__class__(argv, **kwargs)
         for mod in self._child_mods:
@@ -252,14 +260,8 @@ class TestProcessTrace(unittest.TestCase):
 
     def check_trace(self, expect, actual):
         # We cannot know the PIDs beforehand, so traverse through the actual
-        # process tree, and copy .pid and .ppid over to the expected instances.
-        def copy_pids(actual, expect):
-            assert expect.pid is None
-            expect.pid = actual.pid
-            expect.ppid = actual.ppid
-            for a, e in zip(actual.children, expect.children):
-                copy_pids(a, e)
-        copy_pids(actual, expect)
+        # process tree, and copy PIDs and PPIDs over to the expected instances.
+        expect.copy_pids_from_actual(actual)
 
         self.assertEqual(expect.json(), actual.json())
 
