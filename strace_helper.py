@@ -264,9 +264,20 @@ class StraceOutputParser:
     _handle_syscall_newfstatat = _handle_syscall_stat
 
     def _handle_syscall_unlink(self, pid, func, args, ret, rest):
-        path, = self._parse_args('s', args)
-        assert ret == 0 and not rest
-        yield pid, 'write', (path,)
+        if func == 'unlinkat':
+            base, path, flags = self._parse_args('f,s,n', args)
+            assert base == '.', base
+            assert flags == 0, flags
+        else:
+            path, = self._parse_args('s', args)
+        if ret == 0:
+            assert not rest
+            yield pid, 'write', (path,)
+        else:
+            assert ret == -1 and rest.startswith('ENOENT ')
+            yield pid, 'check', (path, False)
+
+    _handle_syscall_unlinkat = _handle_syscall_unlink
 
     def _handle_syscall_utimensat(self, pid, func, args, ret, rest):
         base, path, times, flag = self._parse_args('f,s,n,n', args)
