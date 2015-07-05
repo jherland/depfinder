@@ -371,6 +371,25 @@ class TestProcessTrace(unittest.TestCase):
             self.run_test(expect_make, argv, cwd=tmpdir)
             self.assertTrue(target.exists())
 
+    def test_collapsed_shell_scipt_with_fork(self):
+        with TemporaryDirectory() as tmpdir:
+            script = Path(tmpdir, 'fork.sh')
+            with script.open('w') as f:
+                f.write('#!/bin/sh\n\ndmesg\n')
+            script.chmod(0o755)
+
+            argv = [script.as_posix()]
+            expect = ExpectedProcessTrace(argv)
+            expect.sh()
+            expect.read(script)
+            expect.path_lookup('dmesg')
+            expect.read('/usr/bin/dmesg')  # exec(dmesg) => read(dmesg)
+            expect.read('/dev/kmsg')  # from dmesg subprocess
+
+            actual = self.run_trace(argv)
+            collapsed = actual.collapsed()
+            self.check_trace(expect, collapsed)
+
 
 if __name__ == '__main__':
     unittest.main()

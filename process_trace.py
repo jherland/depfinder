@@ -93,6 +93,33 @@ class ProcessTrace:
 
         return json.dumps(self, indent=4, sort_keys=True, default=default)
 
+    def collapsed(self):
+        '''Return a copy of self with all children's file activities collapsed.
+
+        Create a copy of self with all its children's file reads/writes/checks
+        collapsed into the copy, and with its .children emptied.
+        '''
+        ret = self.__class__(
+            pid=self.pid,
+            ppid=self.ppid,
+            cwd=self.cwd,
+            executable=self.executable,
+            argv=self.argv,
+            env=self.env,
+            exit_code=self.exit_code)
+
+        def copy_activities(p):
+            ret.paths_read |= p.paths_read
+            ret.paths_written |= p.paths_written
+            ret.paths_checked |= p.paths_checked
+            # Add child executable to read set, to not lose track of it
+            ret.read(p.executable)
+            for c in p.children:
+                copy_activities(c)
+
+        copy_activities(self)
+        return ret
+
     # Trace event handlers
 
     def exec(self, executable, argv, env):
