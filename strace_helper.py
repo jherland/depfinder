@@ -175,6 +175,11 @@ class StraceOutputParser:
         assert ret == 0 and not rest
         yield pid, 'chdir', (path,)
 
+    def _handle_syscall_chmod(self, pid, func, args, ret, rest):
+        path, mode = self._parse_args('s,n', args)
+        assert ret == 0 and not rest
+        yield pid, 'write', (path,)
+
     def _handle_syscall_clone(self, pid, func, args, ret, rest):
         _, _, flags = args.partition('flags=')  # not interested in other args?
         flags = set(self._parse_bitwise_or(flags)[0])
