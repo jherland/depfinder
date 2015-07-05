@@ -248,7 +248,12 @@ class StraceOutputParser:
         yield pid, 'write', (path_to,)
 
     def _handle_syscall_stat(self, pid, func, args, ret, rest):
-        path, struct = self._parse_args('s,n', args)
+        if func == 'newfstatat':
+            base, path, struct, flags = self._parse_args('f,s,n,|', args)
+            assert base == '.', base
+            assert flags == ['AT_SYMLINK_NOFOLLOW']
+        else:
+            path, struct = self._parse_args('s,n', args)
         if ret == 0:
             assert not rest
         else:
@@ -256,6 +261,7 @@ class StraceOutputParser:
         yield pid, 'check', (path, ret == 0)
 
     _handle_syscall_lstat = _handle_syscall_stat
+    _handle_syscall_newfstatat = _handle_syscall_stat
 
     def _handle_syscall_unlink(self, pid, func, args, ret, rest):
         path, = self._parse_args('s', args)
