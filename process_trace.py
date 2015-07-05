@@ -123,12 +123,14 @@ class ProcessTrace:
     # Trace event handlers
 
     def exec(self, executable, argv, env):
-        assert self.executable is None
-        assert self.argv is None
-        assert self.env is None
-        self.executable = self.cwd / executable
-        self.argv = argv
-        self.env = env
+        if self.executable is None:  # first exec(), typically following fork()
+            assert self.argv is None
+            assert self.env is None
+            self.executable = self.cwd / executable
+            self.argv = argv
+            self.env = env
+        else:  # subsequent exec() does not replace the first exec's details
+            self.read(executable)
 
     def read(self, path):
         self.paths_read.add((str(path), self.cwd / path))

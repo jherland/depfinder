@@ -327,6 +327,16 @@ class TestProcessTrace(unittest.TestCase):
 
             self.run_test(expect_sh, argv)
 
+    def test_shell_cmd_with_exec(self):
+        argv = ['/bin/sh', '-c', 'cat /dev/null']
+        expect_sh = ExpectedProcessTrace(argv)
+        expect_sh.sh()
+        cat_path = expect_sh.path_lookup('cat')
+        expect_sh.read(cat_path)  # really exec()
+        expect_sh.read('/dev/null')
+
+        self.run_test(expect_sh, argv)
+
     def test_simple_gcc(self):
         with TemporaryDirectory() as tmpdir:
             c_file = Path(tmpdir, 'hello.c')
