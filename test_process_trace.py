@@ -133,12 +133,18 @@ class ExpectedProcessTrace(ProcessTrace):
                     yield prev, cur
                 prev = cur
 
+        c_file, o_file = None, None
         for opt, arg in pairify(self.argv):
             if opt == '-c':
                 c_file = Path(arg)
             elif opt == '-o':
                 o_file = Path(arg)
+
+        if c_file is None:
+            c_file = Path(self.argv[-1])
         assert c_file and o_file
+
+        final_executable = str(c_file) == str(o_file) + '.c'
 
         gcc_executable = self.path_lookup('gcc')
         self.check_parents(gcc_executable, True)
@@ -200,7 +206,7 @@ class ExpectedProcessTrace(ProcessTrace):
             c_file.name,
             '-mtune=generic',
             '-march=x86-64',
-            '-auxbase-strip',
+            '-auxbase' if final_executable else '-auxbase-strip',
             o_file.as_posix(),
             '-o',
             '-'
@@ -247,7 +253,8 @@ class ExpectedProcessTrace(ProcessTrace):
 
 class TestProcessTrace(unittest.TestCase):
 
-    maxDiff = 40960
+    maxDiff = None
+    _diffThreshold = 100000
 
     def run_trace(self, cmd_args, debug=False, cwd=None, **popen_args):
         strace_helper.logger.setLevel(
@@ -399,6 +406,83 @@ class TestProcessTrace(unittest.TestCase):
             actual = self.run_trace(argv)
             collapsed = actual.collapsed()
             self.check_trace(expect, collapsed)
+
+    makefile_contents = '''\
+PROGRAM = hello
+
+$(PROGRAM): $(PROGRAM).c
+\tgcc -pipe -o $@ $^
+
+.PHONY: clean
+clean:
+\trm -f $(PROGRAM)
+
+'''
+
+    hello_c_contents = '''\
+#include <stdio.h>
+
+int main()
+{
+\tputs("Hello, World!");
+}
+'''
+
+    def test_simple_make_cycle(self):
+        with TemporaryDirectory() as tmpdir:
+            makefile = Path(tmpdir, 'Makefile')
+            hello_c = Path(tmpdir, 'hello.c')
+            hello = Path(tmpdir, 'hello')
+            with makefile.open('w') as f:
+                f.write(self.makefile_contents)
+            with hello_c.open('w') as f:
+                f.write(self.hello_c_contents)
+
+            # Run make 1st time: Build hello from hello.c
+            argv = ['make']
+            expect_make = ExpectedProcessTrace(argv, cwd=tmpdir)
+            expect_make.make()
+            expect_make.check(makefile.name, True)
+            expect_make.read(makefile.name)
+            expect_make.check(hello.name, False)
+            expect_make.check(hello.name, True)
+
+            # Apparently, make will bypass the usual /bin/sh -c 'cmdline' here
+            argv_rule = ['gcc', '-pipe', '-o', hello.name, hello_c.name]
+            expect_rule = expect_make.fork_exec(argv_rule, cwd=tmpdir)
+            expect_rule.path_lookup('gcc')
+            expect_rule.gcc()
+
+            self.assertFalse(hello.exists())
+            self.run_test(expect_make, argv, cwd=tmpdir, debug=True)
+            self.assertTrue(hello.exists())
+
+            # Run make 2nd time: Nothing to do
+            expect_make2 = ExpectedProcessTrace(argv, cwd=tmpdir)
+            expect_make2.make()
+            expect_make2.check(makefile.name, True)
+            expect_make2.read(makefile.name)
+            expect_make2.check(hello.name, True)
+
+            self.assertTrue(hello.exists())
+            self.run_test(expect_make2, argv, cwd=tmpdir)
+            self.assertTrue(hello.exists())
+
+            # Run make clean
+            argv = ['make clean']
+            expect_make3 = ExpectedProcessTrace(argv, cwd=tmpdir)
+            expect_make3.make()
+            expect_make3.check(makefile.name, True)
+            expect_make3.read(makefile.name)
+
+            argv_clean = ['/bin/sh', '-c',
+                          'rm -f {}'.format(hello.name)]
+            expect_clean = expect_make3.fork_exec(argv_clean, cwd=tmpdir)
+            expect_clean.sh()
+
+            self.assertTrue(hello.exists())
+            self.run_test(expect_make3, argv, cwd=tmpdir)
+            self.assertFalse(hello.exists())
 
 
 if __name__ == '__main__':
