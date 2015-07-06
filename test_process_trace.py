@@ -400,6 +400,91 @@ class TestProcessTrace(unittest.TestCase):
             collapsed = actual.collapsed()
             self.check_trace(expect, collapsed)
 
+    makefile_contents = '''\
+PROGRAM = hello
+
+$(PROGRAM): $(PROGRAM).c
+\tcp $^ $@
+
+.PHONY: clean
+clean:
+\trm -f $(PROGRAM)
+
+'''
+
+    hello_c_contents = '''\
+#include <stdio.h>
+
+int main()
+{
+\tputs("Hello, World!");
+}
+'''
+
+    def test_simple_make_cycle(self):
+        with TemporaryDirectory() as tmpdir:
+            makefile = Path(tmpdir, 'Makefile')
+            hello_c = Path(tmpdir, 'hello.c')
+            hello = Path(tmpdir, 'hello')
+            with makefile.open('w') as f:
+                f.write(self.makefile_contents)
+            with hello_c.open('w') as f:
+                f.write(self.hello_c_contents)
+
+            # Run make 1st time: Build hello from hello.c
+            argv = ['make']
+            expect_make = ExpectedProcessTrace(argv, cwd=tmpdir)
+            expect_make.make()
+            expect_make.check(makefile.name, True)
+            expect_make.read(makefile.name)
+            expect_make.check(hello_c.name, True)
+            expect_make.check(hello.name, False)
+            expect_make.check(hello.name, True)
+
+            # Apparently, make will bypass the usual /bin/sh -c 'cmdline' here
+            argv_rule = ['cp', hello_c.name, hello.name]
+            expect_rule = expect_make.fork_exec(argv_rule, cwd=tmpdir)
+            expect_rule.path_lookup('cp', only_missing=True)
+            expect_rule.ld('acl', 'attr')
+            expect_rule.check(hello_c.name, True)
+            expect_rule.check(hello.name, False)
+            expect_rule.read(hello_c.name)
+            expect_rule.write(hello.name)
+
+            self.assertFalse(hello.exists())
+            self.run_test(expect_make, argv, cwd=tmpdir)
+            self.assertTrue(hello.exists())
+
+            # Run make 2nd time: Nothing to do
+            expect_make2 = ExpectedProcessTrace(argv, cwd=tmpdir)
+            expect_make2.make()
+            expect_make2.check(makefile.name, True)
+            expect_make2.read(makefile.name)
+            expect_make2.check(hello_c.name, True)
+            expect_make2.check(hello.name, True)
+
+            self.assertTrue(hello.exists())
+            self.run_test(expect_make2, argv, cwd=tmpdir)
+            self.assertTrue(hello.exists())
+
+            # Run make clean
+            argv = ['make', 'clean']
+            expect_make3 = ExpectedProcessTrace(argv, cwd=tmpdir)
+            expect_make3.make()
+            expect_make3.check(makefile.name, True)
+            expect_make3.read(makefile.name)
+
+            argv_clean = ['rm', '-f', hello.name]
+            expect_clean = expect_make3.fork_exec(argv_clean, cwd=tmpdir)
+            expect_clean.path_lookup('rm', only_missing=True)
+            expect_clean.ld()
+            expect_clean.check(hello.name, True)
+            expect_clean.write(hello.name)
+
+            self.assertTrue(hello.exists())
+            self.run_test(expect_make3, argv, cwd=tmpdir)
+            self.assertFalse(hello.exists())
+
 
 if __name__ == '__main__':
     unittest.main()

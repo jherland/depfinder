@@ -24,7 +24,7 @@ def start_trace(cmd_args, trace_output, **popen_args):
 
     args = [
         'strace', '-f', '-q', '-v', '-s', '4096', '-y',
-        '-e', 'trace=file,process', '-e', 'verbose=!stat,lstat',
+        '-e', 'trace=file,process', '-e', 'verbose=!stat,lstat,newfstatat',
         '-o', trace_output,
     ]
     logger.debug('Running {!r} followed by {!r}'.format(args, cmd_args))
