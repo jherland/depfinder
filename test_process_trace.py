@@ -247,7 +247,7 @@ class ExpectedProcessTrace(ProcessTrace):
 
 class TestProcessTrace(unittest.TestCase):
 
-    maxDiff = 40960
+    maxDiff = None
 
     def run_trace(self, cmd_args, debug=False, cwd=None, **popen_args):
         strace_helper.logger.setLevel(
