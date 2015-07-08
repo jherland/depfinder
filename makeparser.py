@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from subprocess import Popen, PIPE, CalledProcessError
+from subprocess import Popen, PIPE, DEVNULL, CalledProcessError
 
 
 def call_output_lines(*popenargs, **kwargs):
@@ -78,7 +78,7 @@ class Makefile:
         '''
         ret = cls()
         argv = ['make', '--print-data-base', '--question'] + list(make_args)
-        lines = call_output_lines(argv)
+        lines = call_output_lines(argv, stderr=DEVNULL)
         for line in lines:
             if line == '# Variables':
                 break
