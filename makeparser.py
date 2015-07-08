@@ -13,6 +13,25 @@ def call_output_lines(*popenargs, **kwargs):
 
 class Makefile:
 
+    class Rule:
+        def __init__(self):
+            self.target = None
+            self.deps = []
+            self.recipe = []
+            self.is_target = True
+
+        def __str__(self):
+            ret = []
+            if not self.is_target:
+                ret.append('# Not a target:')
+            ret.append('{}: {}'.format(self.target, ' '.join(self.deps)))
+            for line in self.recipe:
+                ret.append('\t' + line)
+            return '\n'.join(ret)
+
+        def __lt__(self, other):
+            return (self.target, self.deps) < (other.target, other.deps)
+
     @staticmethod
     def _parse_vars(lines, stop_at):
         for line in lines:
@@ -25,31 +44,28 @@ class Makefile:
                 k = k.rstrip(':').rstrip(' ')
                 yield k, v
 
-    @staticmethod
-    def _parse_rules(lines, stop_at):
-        target, deps, recipe = None, [], []
+    @classmethod
+    def _parse_rules(cls, lines, stop_at):
+        cur = cls.Rule()
         for line in lines:
             if stop_at(line):
                 break
+            elif not line:  # Empty line - between rules
+                if cur.target is not None:
+                    yield cur
+                    cur = cls.Rule()
             elif line == '# Not a target:':
-                not_a_target = True
-            elif not line or line.startswith('#'):
+                cur.is_target = False
+            elif line.startswith('#'):
                 pass
             elif line.startswith('\t'):
-                assert target is not None
-                recipe.append(line[1:])
+                assert cur.target is not None
+                cur.recipe.append(line[1:])
             else:
-                # Finish previous target
-                if target is not None:
-                    yield target, deps, recipe
-                    target, deps, recipe = None, [], []
+                cur.target, dep_s = line.split(':', 1)
+                cur.deps = dep_s.split()
 
-                target, dep_s = line.split(':', 1)
-                deps = dep_s.split()
-
-        # Finish last target
-        if target is not None:
-            yield target, deps, recipe
+        assert cur.target is None
 
     @classmethod
     def parse(cls, *make_args):
@@ -70,20 +86,21 @@ class Makefile:
         stop_at = lambda l: l == '# Implicit Rules'
         ret.variables = dict(cls._parse_vars(lines, stop_at))
 
-        ret.rules = list(cls._parse_rules(lines, lambda l: False))
+        rule_gen = cls._parse_rules(lines, lambda l: False)
+        ret.rules = dict((r.target, r) for r in rule_gen)
 
         return ret
 
     def __init__(self):
-        self.variables = {}
-        self.rules = []
+        self.variables = {}  # key -> value
+        self.rules = {}  # target name -> Rule object
 
 
 def main(*make_args):
-    # Pass -C and -f (and other) options on to make...
     m = Makefile.parse(*make_args)
-    for target, deps, recipe in m.rules:
-        print('{} <= {}'.format(target, ', '.join(deps)))
+    for rule in sorted(m.rules.values()):
+        if rule.is_target:
+            print('{} <- {}'.format(rule.target, ', '.join(rule.deps)))
 
 
 if __name__ == '__main__':
