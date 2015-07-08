@@ -11,66 +11,79 @@ def call_output_lines(*popenargs, **kwargs):
     p.wait()
 
 
-def run_make(*args):
-    '''Run make with appropriate options in a subprocess, and return an iterator over its output lines.'''
-    argv = ['make', '--print-data-base', '--question'] + list(args)
-    return call_output_lines(argv)
+class Makefile:
 
+    @staticmethod
+    def _parse_vars(lines, stop_at):
+        for line in lines:
+            if stop_at(line):
+                break
+            elif not line or line.startswith('#'):
+                pass
+            else:
+                k, _, v = line.partition('= ')
+                k = k.rstrip(':').rstrip(' ')
+                yield k, v
 
-def _parse_makedb_vars(lines, stop_at):
-    for line in lines:
-        if stop_at(line):
-            break
-        elif not line or line.startswith('#'):
-            pass
-        else:
-            k, _, v = line.partition('= ')
-            k = k.rstrip(':').rstrip(' ')
-            yield k, v
+    @staticmethod
+    def _parse_rules(lines, stop_at):
+        target, deps, recipe = None, [], []
+        for line in lines:
+            if stop_at(line):
+                break
+            elif line == '# Not a target:':
+                not_a_target = True
+            elif not line or line.startswith('#'):
+                pass
+            elif line.startswith('\t'):
+                assert target is not None
+                recipe.append(line[1:])
+            else:
+                # Finish previous target
+                if target is not None:
+                    yield target, deps, recipe
+                    target, deps, recipe = None, [], []
 
+                target, dep_s = line.split(':', 1)
+                deps = dep_s.split()
 
-def _parse_makedb_rules(lines, stop_at):
-    target, deps, recipe = None, [], []
-    for line in lines:
-        if stop_at(line):
-            break
-        elif not line or line.startswith('#'):
-            pass
-        elif line.startswith('\t'):
-            assert target is not None
-            recipe.append(line[1:])
-        else:
-            # Finish previous target
-            if target is not None:
-                yield target, deps, recipe
-                target, deps, recipe = None, [], []
+        # Finish last target
+        if target is not None:
+            yield target, deps, recipe
 
-            target, dep_s = line.split(':', 1)
-            deps = dep_s.split()
+    @classmethod
+    def parse(cls, *make_args):
+        '''Create a Makefile object from running make --print-data-base.
 
-    # Finish last target
-    if target is not None:
-        yield target, deps, recipe
+        Run make with appropriate options to build nothing, but instead print
+        its internal database, and then parse this database output into a
+        new Makefile instance. Any arguments passed to this method are passed
+        on to the make command line.
+        '''
+        ret = cls()
+        argv = ['make', '--print-data-base', '--question'] + list(make_args)
+        lines = call_output_lines(argv)
+        for line in lines:
+            if line == '# Variables':
+                break
 
+        stop_at = lambda l: l == '# Implicit Rules'
+        ret.variables = dict(cls._parse_vars(lines, stop_at))
 
-def parse_makedb(lines):
-    # pre
-    for line in lines:
-        if line == '# Variables':
-            break
+        ret.rules = list(cls._parse_rules(lines, lambda l: False))
 
-    stop_at = lambda l: l == '# Implicit Rules'
-    make_vars = dict(_parse_makedb_vars(lines, stop_at))
+        return ret
 
-    make_rules = list(_parse_makedb_rules(lines, lambda l: False))
-
-    return make_vars, make_rules
+    def __init__(self):
+        self.variables = {}
+        self.rules = []
 
 
 def main(*make_args):
     # Pass -C and -f (and other) options on to make...
-    from pprint import pprint
-    pprint(parse_makedb(run_make(*make_args)))
+    m = Makefile.parse(*make_args)
+    for target, deps, recipe in m.rules:
+        print('{} <= {}'.format(target, ', '.join(deps)))
 
 
 if __name__ == '__main__':
