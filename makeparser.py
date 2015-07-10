@@ -3,12 +3,11 @@
 from subprocess import Popen, PIPE, DEVNULL, CalledProcessError
 
 
-def call_output_lines(*popenargs, **kwargs):
+def call_output_lines(*args, **kwargs):
     '''Like subprocess.check_output(), but yield output lines, lazily.'''
-    p = Popen(*popenargs, stdout=PIPE, universal_newlines=True, **kwargs)
-    for line in p.stdout:
-        yield line.rstrip('\r\n')
-    p.wait()
+    with Popen(*args, stdout=PIPE, universal_newlines=True, **kwargs) as p:
+        for line in p.stdout:
+            yield line.rstrip('\r\n')
 
 
 class Makefile:
