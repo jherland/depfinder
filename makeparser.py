@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from subprocess import Popen, PIPE, DEVNULL, CalledProcessError
+from subprocess import Popen, PIPE, DEVNULL
 
 
 def call_output_lines(*args, **kwargs):
@@ -82,8 +82,8 @@ class Makefile:
             if line == '# Variables':
                 break
 
-        stop_at = lambda l: l == '# Implicit Rules'
-        ret.variables = dict(cls._parse_vars(lines, stop_at))
+        ret.variables = dict(cls._parse_vars(
+            lines, lambda l: l == '# Implicit Rules'))
 
         rule_gen = cls._parse_rules(lines, lambda l: False)
         ret.rules = dict((r.target, r) for r in rule_gen)
